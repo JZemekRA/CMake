@@ -740,6 +740,9 @@ if (WIN32)
       cmVisualStudioWCEPlatformParser.cxx
       cmVSSetupHelper.cxx
       cmVSSetupHelper.h
+# JKorbelRA: Add IAR and Multi generators
+      cmExtraIarGenerator.cxx
+      cmExtraIarGenerator.h
       )
 
     # Add a manifest file to executables on Windows to allow for

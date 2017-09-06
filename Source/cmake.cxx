@@ -1936,7 +1936,8 @@ void cmake::AddDefaultGenerators()
   this->Generators.push_back(cmGlobalBorlandMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalNMakeMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalJOMMakefileGenerator::NewFactory());
-#  endif
+  this->Generators.push_back(cmGlobalGhsMultiGenerator::NewFactory());
+#endif
   this->Generators.push_back(cmGlobalMSYSMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalMinGWMakefileGenerator::NewFactory());
 #endif

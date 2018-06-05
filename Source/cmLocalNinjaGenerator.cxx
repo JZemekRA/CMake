@@ -76,8 +76,8 @@ void cmLocalNinjaGenerator::Generate()
     if (!showIncludesPrefix.empty()) {
       cmGlobalNinjaGenerator::WriteComment(this->GetRulesFileStream(),
                                            "localized /showIncludes string");
-      this->GetRulesFileStream() << "msvc_deps_prefix = " << showIncludesPrefix
-                                 << "\n\n";
+      this->GetRulesFileStream()
+        << "msvc_deps_prefix = " << showIncludesPrefix << "\n\n";
     }
   }
 
@@ -197,6 +197,16 @@ void cmLocalNinjaGenerator::WriteNinjaRequiredVersion(std::ostream& os)
       this->GetGlobalNinjaGenerator()->RequiredNinjaVersionForConsolePool();
   }
 
+  // The Ninja generator writes rules which require support for restat
+  // when rebuilding build.ninja manifest (>= 1.8)
+  if (this->GetGlobalNinjaGenerator()->SupportsManifestRestat() &&
+      this->GetCMakeInstance()->DoWriteGlobVerifyTarget() &&
+      !this->GetGlobalNinjaGenerator()->GlobalSettingIsOn(
+        "CMAKE_SUPPRESS_REGENERATION")) {
+    requiredVersion =
+      this->GetGlobalNinjaGenerator()->RequiredNinjaVersionForManifestRestat();
+  }
+
   cmGlobalNinjaGenerator::WriteComment(
     os, "Minimal version of Ninja required by this file");
   os << "ninja_required_version = " << requiredVersion << std::endl
@@ -241,8 +251,7 @@ void cmLocalNinjaGenerator::WriteNinjaFilesInclusion(std::ostream& os)
   cmGlobalNinjaGenerator* ng = this->GetGlobalNinjaGenerator();
   std::string const ninjaRulesFile =
     ng->NinjaOutputPath(cmGlobalNinjaGenerator::NINJA_RULES_FILE);
-  std::string const rulesFilePath =
-    ng->EncodeIdent(ng->EncodePath(ninjaRulesFile), os);
+  std::string const rulesFilePath = ng->EncodePath(ninjaRulesFile);
   cmGlobalNinjaGenerator::WriteInclude(os, rulesFilePath,
                                        "Include rules file.");
   os << "\n";
@@ -456,7 +465,7 @@ void cmLocalNinjaGenerator::WriteCustomCommandBuildStatement(
   }
 
 #if 0
-#error TODO: Once CC in an ExternalProject target must provide the \
+#  error TODO: Once CC in an ExternalProject target must provide the \
     file of each imported target that has an add_dependencies pointing \
     at us.  How to know which ExternalProject step actually provides it?
 #endif

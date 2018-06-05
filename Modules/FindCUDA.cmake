@@ -557,6 +557,11 @@ else()
       set(c_compiler_realpath "")
     endif()
     set(CUDA_HOST_COMPILER "${c_compiler_realpath}" CACHE FILEPATH "Host side compiler used by NVCC")
+  elseif(MSVC AND "${CMAKE_C_COMPILER}" MATCHES "clcache|sccache")
+    # NVCC does not think it will work if it is passed clcache.exe or sccache.exe
+    # as the host compiler, which means that builds with CC=cl.exe won't work.
+    # Best to just feed it whatever the actual cl.exe is as the host compiler.
+    set(CUDA_HOST_COMPILER "cl.exe" CACHE FILEPATH "Host side compiler used by NVCC")
   else()
     set(CUDA_HOST_COMPILER "${CMAKE_C_COMPILER}"
       CACHE FILEPATH "Host side compiler used by NVCC")
@@ -733,16 +738,20 @@ endif()
 
 
 # CUDA_NVCC_EXECUTABLE
-cuda_find_host_program(CUDA_NVCC_EXECUTABLE
-  NAMES nvcc
-  PATHS "${CUDA_TOOLKIT_ROOT_DIR}"
-  ENV CUDA_PATH
-  ENV CUDA_BIN_PATH
-  PATH_SUFFIXES bin bin64
-  NO_DEFAULT_PATH
-  )
-# Search default search paths, after we search our own set of paths.
-cuda_find_host_program(CUDA_NVCC_EXECUTABLE nvcc)
+if(DEFINED ENV{CUDA_NVCC_EXECUTABLE})
+  set(CUDA_NVCC_EXECUTABLE "$ENV{CUDA_NVCC_EXECUTABLE}" CACHE FILEPATH "The CUDA compiler")
+else()
+  cuda_find_host_program(CUDA_NVCC_EXECUTABLE
+    NAMES nvcc
+    PATHS "${CUDA_TOOLKIT_ROOT_DIR}"
+    ENV CUDA_PATH
+    ENV CUDA_BIN_PATH
+    PATH_SUFFIXES bin bin64
+    NO_DEFAULT_PATH
+    )
+  # Search default search paths, after we search our own set of paths.
+  cuda_find_host_program(CUDA_NVCC_EXECUTABLE nvcc)
+endif()
 mark_as_advanced(CUDA_NVCC_EXECUTABLE)
 
 if(CUDA_NVCC_EXECUTABLE AND NOT CUDA_VERSION)
@@ -1760,7 +1769,7 @@ function(CUDA_LINK_SEPARABLE_COMPILATION_OBJECTS output_file cuda_target options
       add_custom_command(
         OUTPUT ${output_file}
         DEPENDS ${object_files}
-        COMMAND ${CUDA_NVCC_EXECUTABLE} ${nvcc_flags} -dlink ${object_files} ${CUDA_cublas_device_LIBRARY} -o ${output_file}
+        COMMAND ${CUDA_NVCC_EXECUTABLE} ${nvcc_flags} -dlink ${object_files} -o ${output_file}
         ${flags}
         COMMENT "Building NVCC intermediate link file ${output_file_relative_path}"
         COMMAND_EXPAND_LISTS
@@ -1773,7 +1782,7 @@ function(CUDA_LINK_SEPARABLE_COMPILATION_OBJECTS output_file cuda_target options
         PRE_LINK
         COMMAND ${CMAKE_COMMAND} -E echo "Building NVCC intermediate link file ${output_file_relative_path}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${output_file_dir}"
-        COMMAND ${CUDA_NVCC_EXECUTABLE} ${nvcc_flags} ${flags} -dlink ${object_files} ${CUDA_cublas_device_LIBRARY} -o "${output_file}"
+        COMMAND ${CUDA_NVCC_EXECUTABLE} ${nvcc_flags} ${flags} -dlink ${object_files} -o "${output_file}"
         COMMAND_EXPAND_LISTS
         ${_verbatim}
         )

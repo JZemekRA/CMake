@@ -71,7 +71,8 @@ public:
                             const std::string& projectName,
                             const std::string& projectDir,
                             const std::string& targetName,
-                            const std::string& config, bool fast, bool verbose,
+                            const std::string& config, bool fast, int jobs,
+                            bool verbose,
                             std::vector<std::string> const& makeOptions =
                               std::vector<std::string>()) override;
 
@@ -198,6 +199,8 @@ private:
                                           cmGeneratorTarget* target);
   cmXCodeObject* CreateXCodeSourceFile(cmLocalGenerator* gen, cmSourceFile* sf,
                                        cmGeneratorTarget* gtgt);
+  void AddXCodeProjBuildRule(cmGeneratorTarget* target,
+                             std::vector<cmSourceFile*>& sources) const;
   bool CreateXCodeTargets(cmLocalGenerator* gen, std::vector<cmXCodeObject*>&);
   bool IsHeaderFile(cmSourceFile*);
   void AddDependTarget(cmXCodeObject* target, cmXCodeObject* dependTarget);

@@ -94,16 +94,6 @@ bool cmTargetLinkLibrariesCommand::InitialPass(
     return true;
   }
 
-  // OBJECT libraries are not allowed on the LHS of the command.
-  if (this->Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
-    std::ostringstream e;
-    e << "Object library target \"" << args[0] << "\" "
-      << "may not link to anything.";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    cmSystemTools::SetFatalErrorOccured();
-    return true;
-  }
-
   // Having a UTILITY library on the LHS is a bug.
   if (this->Target->GetType() == cmStateEnums::UTILITY) {
     std::ostringstream e;
@@ -352,8 +342,9 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
       // form must be the plain form.
       const char* existingSig =
         (sig == cmTarget::KeywordTLLSignature ? "plain" : "keyword");
-      e << "The " << existingSig << " signature for target_link_libraries has "
-                                    "already been used with the target \""
+      e << "The " << existingSig
+        << " signature for target_link_libraries has "
+           "already been used with the target \""
         << this->Target->GetName()
         << "\".  All uses of target_link_libraries with a target " << modal
         << " be either all-keyword or all-plain.\n";
@@ -374,7 +365,7 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
   if (this->CurrentProcessingState != ProcessingKeywordLinkInterface &&
       this->CurrentProcessingState != ProcessingPlainLinkInterface) {
 
-    // Assure that the target on the LHS was created in the current directory.
+    // Find target on the LHS locally
     cmTarget* t =
       this->Makefile->FindLocalNonAliasTarget(this->Target->GetName());
     if (!t) {
@@ -387,11 +378,18 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
         }
       }
     }
+
+    // If no local target has been found, find it in the global scope
+    if (!t) {
+      t = this->Makefile->GetGlobalGenerator()->FindTarget(
+        this->Target->GetName(), true);
+    }
+
     if (!t) {
       std::ostringstream e;
       e << "Attempt to add link library \"" << lib << "\" to target \""
         << this->Target->GetName()
-        << "\" which is not built in this directory.";
+        << "\" which does not exist or is an alias target.";
       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
       return false;
     }
@@ -401,14 +399,15 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
     if (tgt && (tgt->GetType() != cmStateEnums::STATIC_LIBRARY) &&
         (tgt->GetType() != cmStateEnums::SHARED_LIBRARY) &&
         (tgt->GetType() != cmStateEnums::UNKNOWN_LIBRARY) &&
+        (tgt->GetType() != cmStateEnums::OBJECT_LIBRARY) &&
         (tgt->GetType() != cmStateEnums::INTERFACE_LIBRARY) &&
         !tgt->IsExecutableWithExports()) {
       std::ostringstream e;
       e << "Target \"" << lib << "\" of type "
         << cmState::GetTargetTypeName(tgt->GetType())
         << " may not be linked into another target.  One may link only to "
-           "INTERFACE, STATIC or SHARED libraries, or to executables with the "
-           "ENABLE_EXPORTS property set.";
+           "INTERFACE, OBJECT, STATIC or SHARED libraries, or to executables "
+           "with the ENABLE_EXPORTS property set.";
       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
     }
 

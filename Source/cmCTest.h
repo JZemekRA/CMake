@@ -295,9 +295,10 @@ public:
 
   enum
   {
-    EXPERIMENTAL,
-    NIGHTLY,
-    CONTINUOUS
+    UNKNOWN = -1,
+    EXPERIMENTAL = 0,
+    NIGHTLY = 1,
+    CONTINUOUS = 2,
   };
 
   /** provide some more detailed info on the return code for ctest */
@@ -347,7 +348,7 @@ public:
                                               const std::string& cmake_var,
                                               bool suppress = false);
 
-  /** Make string safe to be send as an URL */
+  /** Make string safe to be sent as a URL */
   static std::string MakeURLSafe(const std::string&);
 
   /** Decode a URL to the original string.  */

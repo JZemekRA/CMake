@@ -52,6 +52,22 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
     endforeach()
   endif()
 
+  # CUDA < 7.5 is missing version macros
+  if(lang STREQUAL "CUDA"
+     AND CMAKE_${lang}_COMPILER_ID STREQUAL "NVIDIA"
+     AND NOT CMAKE_${lang}_COMPILER_VERSION)
+    execute_process(
+      COMMAND "${CMAKE_${lang}_COMPILER}"
+      --version
+      OUTPUT_VARIABLE output ERROR_VARIABLE output
+      RESULT_VARIABLE result
+      TIMEOUT 10
+    )
+    if(output MATCHES [=[ V([0-9]+)\.([0-9]+)\.([0-9]+)]=])
+      set(CMAKE_${lang}_COMPILER_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+    endif()
+  endif()
+
   if (COMPILER_QNXNTO AND CMAKE_${lang}_COMPILER_ID STREQUAL "GNU")
     execute_process(
       COMMAND "${CMAKE_${lang}_COMPILER}"
@@ -197,9 +213,13 @@ Id flags: ${testflags} ${CMAKE_${lang}_COMPILER_ID_FLAGS_ALWAYS}
         if(CMAKE_VS_PLATFORM_TOOLSET MATCHES "Intel")
           set(id_cl icl.exe)
         endif()
+        if(CMAKE_VS_PLATFORM_TOOLSET_VERSION)
+          set(id_toolset_version_props "<Import Project=\"${CMAKE_GENERATOR_INSTANCE}\\VC\\Auxiliary\\Build\\${CMAKE_VS_PLATFORM_TOOLSET_VERSION}\\Microsoft.VCToolsVersion.${CMAKE_VS_PLATFORM_TOOLSET_VERSION}.props\" />")
+        endif()
       endif()
     else()
       set(id_toolset "")
+      set(id_toolset_version_props "")
     endif()
     if(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE)
       set(id_PreferredToolArchitecture "<PreferredToolArchitecture>${CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE}</PreferredToolArchitecture>")

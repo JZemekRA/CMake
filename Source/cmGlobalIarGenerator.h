@@ -77,7 +77,7 @@ public:
   void Generate();
 
   bool Open(const std::string& bindir, const std::string& projectName,
-      bool dryRun) override;
+            bool dryRun) override;
 
   virtual void GenerateBuildCommand(
       std::vector<std::string>& makeCommand, const std::string& makeProgram,

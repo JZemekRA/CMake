@@ -2330,8 +2330,8 @@ bool cmGlobalIarGenerator::Open(const std::string& bindir,
     bool dryRun)
 {
     if (dryRun) {
-        return cmSystemTools::FileExists(this->workspace.workspacePath, true);
+        return cmSystemTools::FileExists(bindir + "/" + projectName + ".eww", true);
     }
 
-    return std::async(std::launch::async, OpenWorkspace, this->workspace.workspacePath).get();
+    return std::async(std::launch::async, OpenWorkspace, bindir + "/" + projectName + ".eww").get();
 }

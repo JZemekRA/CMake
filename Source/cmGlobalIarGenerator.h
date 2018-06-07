@@ -79,20 +79,20 @@ public:
   bool Open(const std::string& bindir, const std::string& projectName,
             bool dryRun) override;
 
-  virtual void GenerateBuildCommand(
-      std::vector<std::string>& makeCommand, const std::string& makeProgram,
-      const std::string& projectName, const std::string& projectDir,
-      const std::string& targetName, const std::string& config, bool fast,
-      bool verbose,
-      std::vector<std::string> const& makeOptions = std::vector<std::string>());
-
   static std::string ToToolkitPath(std::string absolutePath);
 
   static std::string ToWorkbenchPath(std::string absolutePath);
 
   void ConvertTargetToProject(const cmTarget& target,
       const cmGeneratorTarget* genTgt);
+protected:
 
+  virtual void GenerateBuildCommand(
+    std::vector<std::string>& makeCommand, const std::string& makeProgram,
+    const std::string& projectName, const std::string& projectDir,
+    const std::string& targetName, const std::string& config, bool fast,
+    int jobs, bool verbose,
+    std::vector<std::string> const& makeOptions = std::vector<std::string>());
 private:
 
   std::string FindIarBuildCommand();

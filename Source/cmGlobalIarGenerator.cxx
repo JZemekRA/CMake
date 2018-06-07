@@ -584,11 +584,11 @@ bool cmGlobalIarGenerator::FindMakeProgram(cmMakefile* mf)
 
 void cmGlobalIarGenerator::GenerateBuildCommand(
   std::vector<std::string>& makeCommand, const std::string& makeProgram,
-  const std::string& projectName, const std::string& projectDir,
+  const std::string& /*projectName*/, const std::string& projectDir,
   const std::string& targetName, const std::string& /*config*/, bool /*fast*/,
-  bool /*verbose*/, std::vector<std::string> const& makeOptions)
+  int jobs, bool /*verbose*/, std::vector<std::string> const& makeOptions)
 {
-    if (targetName == "clean" || targetName == "preinstall")
+    if (targetName == "preinstall")
     {
         makeCommand.push_back("echo");
         makeCommand.push_back("Skipping target " + targetName);
@@ -602,10 +602,11 @@ void cmGlobalIarGenerator::GenerateBuildCommand(
   makeCommand.insert(makeCommand.end(), makeOptions.begin(),
                      makeOptions.end());
   if (!targetName.empty()) {
-      makeCommand.push_back(projName);
+    if (targetName == "clean") {
+      makeCommand.push_back("-clean");
+    }
+    makeCommand.push_back(projName);
   }
-
-  /*printf("BuildCmd: %s %s (%s %s)\n", this->FindIarBuildCommand().c_str(), targetName.c_str(), projectDir.c_str(), projectName.c_str());*/
 }
 
 

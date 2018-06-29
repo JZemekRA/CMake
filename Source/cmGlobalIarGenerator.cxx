@@ -2183,6 +2183,8 @@ void cmGlobalIarGenerator::Project::CreateDebuggerFile()
 //----------------------------------------------------------------------------
 void cmGlobalIarGenerator::Workspace::CreateWorkspaceFile()
 {
+  const static std::string errorCheck =
+      "if %ERRORLEVEL% NEQ 0 (SET RETURN_VALUE=1)\n";
   std::string wsFileName = this->workspaceDir + "/" + this->name + ".eww";
   this->workspacePath = wsFileName;
   std::string batFileName = this->workspaceDir + "/BUILD_" + this->name + ".bat";
@@ -2214,6 +2216,7 @@ void cmGlobalIarGenerator::Workspace::CreateWorkspaceFile()
   batchOutput += "REM ===================================================\n";
   batchOutput += "REM IAR BUILD (generated from CMake extraIarGenerator).\n";
   batchOutput += "REM ===================================================\n\n";
+  batchOutput += "SET RETURN_VALUE=0\n\n";
 
   XmlNode root = XmlNode("workspace");
 
@@ -2250,6 +2253,7 @@ void cmGlobalIarGenerator::Workspace::CreateWorkspaceFile()
           batchOutput += "\"" + iarBuildCmd + "\" \""
                   + projPathWin + "\" -build "
                   + cmGlobalIarGenerator::GLOBALCFG.buildType +" -log all\n";
+          batchOutput += errorCheck;
       }
       else
       {
@@ -2281,7 +2285,10 @@ void cmGlobalIarGenerator::Workspace::CreateWorkspaceFile()
       batchOutput += "\"" + iarBuildCmd + "\" \""
               + projPathWin + "\" -build "
               + cmGlobalIarGenerator::GLOBALCFG.buildType +" -log all\n";
+      batchOutput += errorCheck;
     }
+
+  batchOutput += "\nexit %RETURN_VALUE%\n\n";
 
   batchOutput += "\n\nREM ===================================================\n";
   batchOutput += "REM END IAR BUILD.\n";

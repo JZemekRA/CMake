@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCustomCommandGenerator.h"
 
+#include "cmAlgorithms.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmGeneratorExpression.h"
@@ -16,10 +17,10 @@
 #include <utility>
 
 cmCustomCommandGenerator::cmCustomCommandGenerator(cmCustomCommand const& cc,
-                                                   const std::string& config,
+                                                   std::string config,
                                                    cmLocalGenerator* lg)
   : CC(cc)
-  , Config(config)
+  , Config(std::move(config))
   , LG(lg)
   , OldStyle(cc.GetEscapeOldStyle())
   , MakeVars(cc.GetEscapeAllowMakeVars())
@@ -33,9 +34,7 @@ cmCustomCommandGenerator::cmCustomCommandGenerator(cmCustomCommand const& cc,
         this->GE->Parse(clarg);
       std::string parsed_arg = cge->Evaluate(this->LG, this->Config);
       if (this->CC.GetCommandExpandLists()) {
-        std::vector<std::string> ExpandedArg;
-        cmSystemTools::ExpandListArgument(parsed_arg, ExpandedArg);
-        argv.insert(argv.end(), ExpandedArg.begin(), ExpandedArg.end());
+        cmAppend(argv, cmSystemTools::ExpandedListArgument(parsed_arg));
       } else {
         argv.push_back(std::move(parsed_arg));
       }
@@ -54,15 +53,27 @@ cmCustomCommandGenerator::cmCustomCommandGenerator(cmCustomCommand const& cc,
   std::vector<std::string> depends = this->CC.GetDepends();
   for (std::string const& d : depends) {
     std::unique_ptr<cmCompiledGeneratorExpression> cge = this->GE->Parse(d);
-    std::vector<std::string> result;
-    cmSystemTools::ExpandListArgument(cge->Evaluate(this->LG, this->Config),
-                                      result);
+    std::vector<std::string> result = cmSystemTools::ExpandedListArgument(
+      cge->Evaluate(this->LG, this->Config));
     for (std::string& it : result) {
       if (cmSystemTools::FileIsFullPath(it)) {
         it = cmSystemTools::CollapseFullPath(it);
       }
     }
-    this->Depends.insert(this->Depends.end(), result.begin(), result.end());
+    cmAppend(this->Depends, result);
+  }
+
+  const std::string& workingdirectory = this->CC.GetWorkingDirectory();
+  if (!workingdirectory.empty()) {
+    std::unique_ptr<cmCompiledGeneratorExpression> cge =
+      this->GE->Parse(workingdirectory);
+    this->WorkingDirectory = cge->Evaluate(this->LG, this->Config);
+    // Convert working directory to a full path.
+    if (!this->WorkingDirectory.empty()) {
+      std::string const& build_dir = this->LG->GetCurrentBinaryDirectory();
+      this->WorkingDirectory =
+        cmSystemTools::CollapseFullPath(this->WorkingDirectory, build_dir);
+    }
   }
 }
 
@@ -186,7 +197,7 @@ const char* cmCustomCommandGenerator::GetComment() const
 
 std::string cmCustomCommandGenerator::GetWorkingDirectory() const
 {
-  return this->CC.GetWorkingDirectory();
+  return this->WorkingDirectory;
 }
 
 std::vector<std::string> const& cmCustomCommandGenerator::GetOutputs() const

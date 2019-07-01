@@ -62,7 +62,6 @@ Properties on Directories
    :maxdepth: 1
 
    /prop_dir/ADDITIONAL_CLEAN_FILES
-   /prop_dir/ADDITIONAL_MAKE_CLEAN_FILES
    /prop_dir/BINARY_DIR
    /prop_dir/BUILDSYSTEM_TARGETS
    /prop_dir/CACHE_VARIABLES
@@ -332,6 +331,7 @@ Properties on Targets
    /prop_tgt/VS_DOTNET_REFERENCES
    /prop_tgt/VS_DOTNET_REFERENCES_COPY_LOCAL
    /prop_tgt/VS_DOTNET_TARGET_FRAMEWORK_VERSION
+   /prop_tgt/VS_DPI_AWARE
    /prop_tgt/VS_GLOBAL_KEYWORD
    /prop_tgt/VS_GLOBAL_PROJECT_TYPES
    /prop_tgt/VS_GLOBAL_ROOTNAMESPACE
@@ -342,6 +342,7 @@ Properties on Targets
    /prop_tgt/VS_KEYWORD
    /prop_tgt/VS_MOBILE_EXTENSIONS_VERSION
    /prop_tgt/VS_NO_SOLUTION_DEPLOY
+   /prop_tgt/VS_PACKAGE_REFERENCES
    /prop_tgt/VS_PROJECT_IMPORT
    /prop_tgt/VS_SCC_AUXPATH
    /prop_tgt/VS_SCC_LOCALPATH
@@ -504,6 +505,7 @@ Deprecated Properties on Directories
 .. toctree::
    :maxdepth: 1
 
+   /prop_dir/ADDITIONAL_MAKE_CLEAN_FILES
    /prop_dir/COMPILE_DEFINITIONS_CONFIG
    /prop_dir/TEST_INCLUDE_FILE
 

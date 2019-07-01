@@ -770,14 +770,14 @@ if(BUILD_TESTING)
     file(WRITE "${_TEST_DIR}/nightly-cmake.sh"
       "cd ${_TEST_DIR}
 ${CMake_BINARY_DIR}/bin/cmake -DCMAKE_CREATE_VERSION=nightly -P ${CMake_SOURCE_DIR}/Utilities/Release/${script}
-${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release/upload_release.cmake
+${CMake_SOURCE_DIR}/Utilities/Release/push.bash --dir dev -- '${CMake_BUILD_NIGHTLY_RELEASES}'
     ")
     add_test(${name} /bin/sh ${_TEST_DIR}/nightly-cmake.sh)
     if(COMMAND SET_TESTS_PROPERTIES AND COMMAND GET_TEST_PROPERTY)
       set_tests_properties (${name} PROPERTIES TIMEOUT ${CMAKE_LONG_TEST_TIMEOUT})
     endif()
   endmacro()
-  if(CMAKE_BUILD_NIGHTLY_RELEASES)
+  if(CMake_BUILD_NIGHTLY_RELEASES)
     ADD_NIGHTLY_BUILD_TEST(CMakeNightlyWin32
       win32_release.cmake)
     ADD_NIGHTLY_BUILD_TEST(CMakeNightlyWin64
@@ -1398,182 +1398,64 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     endif()
   endif()
 
-  if(CMake_TEST_FindALSA)
-    add_subdirectory(FindALSA)
-  endif()
+  # test for Find modules, simple cases
+  foreach(_mod IN ITEMS
+            ALSA
+            Boost
+            BZip2
+            CURL
+            Cups
+            Doxygen
+            EnvModules
+            EXPAT
+            Fontconfig
+            Freetype
+            GDAL
+            GIF
+            Git
+            GLEW
+            GSL
+            GTK2
+            Iconv
+            ICU
+            JPEG
+            JsonCpp
+            LibLZMA
+            LibRHash
+            Libinput
+            LibUV
+            LibXml2
+            LTTngUST
+            ODBC
+            OpenCL
+            OpenGL
+            OpenMP
+            OpenSSL
+            MPI
+            PNG
+            Patch
+            PostgreSQL
+            Protobuf
+            SQLite3
+            TIFF
+            Vulkan
+            X11
+            XalanC
+            XercesC
+         )
+    if(CMake_TEST_Find${_mod})
+      add_subdirectory(Find${_mod})
+    endif()
+  endforeach()
 
   if(CMake_TEST_CUDA)
     add_subdirectory(Cuda)
     add_subdirectory(CudaOnly)
   endif()
 
-  if(CMake_TEST_FindBoost)
-    add_subdirectory(FindBoost)
-  endif()
-
-  if(CMake_TEST_FindBZip2)
-    add_subdirectory(FindBZip2)
-  endif()
-
-  if(CMake_TEST_FindCURL)
-    add_subdirectory(FindCURL)
-  endif()
-
-  if(CMake_TEST_FindCups)
-    add_subdirectory(FindCups)
-  endif()
-
-  if(CMake_TEST_FindDoxygen)
-    add_subdirectory(FindDoxygen)
-  endif()
-
-  if(CMake_TEST_FindEnvModules)
-    add_subdirectory(FindEnvModules)
-  endif()
-
-  if(CMake_TEST_FindEXPAT)
-    add_subdirectory(FindEXPAT)
-  endif()
-
-  if(CMake_TEST_FindFontconfig)
-    add_subdirectory(FindFontconfig)
-  endif()
-
-  if(CMake_TEST_FindFreetype)
-    add_subdirectory(FindFreetype)
-  endif()
-
-  if(CMake_TEST_FindGDAL)
-    add_subdirectory(FindGDAL)
-  endif()
-
-  if(CMake_TEST_FindGIF)
-    add_subdirectory(FindGIF)
-  endif()
-
-  if(CMake_TEST_FindGit)
-    add_subdirectory(FindGit)
-  endif()
-
-  if(CMake_TEST_FindGLEW)
-    add_subdirectory(FindGLEW)
-  endif()
-
-  if(CMake_TEST_FindGSL)
-    add_subdirectory(FindGSL)
-  endif()
-
   if(CMake_TEST_FindGTest)
     add_subdirectory(FindGTest)
     add_subdirectory(GoogleTest)
-  endif()
-
-  if(CMake_TEST_FindGTK2)
-    add_subdirectory(FindGTK2)
-  endif()
-
-  if(CMake_TEST_FindIconv)
-    add_subdirectory(FindIconv)
-  endif()
-
-  if(CMake_TEST_FindICU)
-    add_subdirectory(FindICU)
-  endif()
-
-  if(CMake_TEST_FindJPEG)
-    add_subdirectory(FindJPEG)
-  endif()
-
-  if(CMake_TEST_FindJsonCpp)
-    add_subdirectory(FindJsonCpp)
-  endif()
-
-  if(CMake_TEST_FindLibLZMA)
-    add_subdirectory(FindLibLZMA)
-  endif()
-
-  if(CMake_TEST_FindLibRHash)
-    add_subdirectory(FindLibRHash)
-  endif()
-
-  if(CMake_TEST_FindLibinput)
-    add_subdirectory(FindLibinput)
-  endif()
-
-  if(CMake_TEST_FindLibUV)
-    add_subdirectory(FindLibUV)
-  endif()
-
-  if(CMake_TEST_FindLibXml2)
-    add_subdirectory(FindLibXml2)
-  endif()
-
-  if(CMake_TEST_FindLTTngUST)
-    add_subdirectory(FindLTTngUST)
-  endif()
-
-  if(CMake_TEST_FindODBC)
-    add_subdirectory(FindODBC)
-  endif()
-
-  if(CMake_TEST_FindOpenCL)
-    add_subdirectory(FindOpenCL)
-  endif()
-
-  if(CMake_TEST_FindOpenGL)
-    add_subdirectory(FindOpenGL)
-  endif()
-
-  if(CMake_TEST_FindOpenMP)
-    add_subdirectory(FindOpenMP)
-  endif()
-
-  if(CMake_TEST_FindOpenSSL)
-    add_subdirectory(FindOpenSSL)
-  endif()
-
-  if(CMake_TEST_FindMPI)
-    add_subdirectory(FindMPI)
-  endif()
-
-  if(CMake_TEST_FindPNG)
-    add_subdirectory(FindPNG)
-  endif()
-
-  if(CMake_TEST_FindPatch)
-    add_subdirectory(FindPatch)
-  endif()
-
-  if(CMake_TEST_FindPostgreSQL)
-    add_subdirectory(FindPostgreSQL)
-  endif()
-
-  if(CMake_TEST_FindProtobuf)
-    add_subdirectory(FindProtobuf)
-  endif()
-
-  if(CMake_TEST_FindSQLite3)
-    add_subdirectory(FindSQLite3)
-  endif()
-
-  if(CMake_TEST_FindTIFF)
-    add_subdirectory(FindTIFF)
-  endif()
-
-  if(CMake_TEST_FindVulkan)
-    add_subdirectory(FindVulkan)
-  endif()
-
-  if(CMake_TEST_FindX11)
-    add_subdirectory(FindX11)
-  endif()
-
-  if(CMake_TEST_FindXalanC)
-    add_subdirectory(FindXalanC)
-  endif()
-
-  if(CMake_TEST_FindXercesC)
-    add_subdirectory(FindXercesC)
   endif()
 
   if(CMake_TEST_FindPython OR CMake_TEST_FindPython_NumPy)
@@ -1591,16 +1473,16 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   # CMake_TEST_FindMatlab_ROOT_DIR: indicates an optional root directory for Matlab, allows to select a version.
   # CMake_TEST_FindMatlab_MCR: indicates the MCR is installed
   # CMake_TEST_FindMatlab_MCR_ROOT_DIR: indicates an optional root directory for the MCR, required on Linux
-  if(CMake_TEST_FindMatlab OR (NOT "${CMake_TEST_FindMatlab_ROOT_DIR}" STREQUAL "") OR
-     CMake_TEST_FindMatlab_MCR OR (NOT "${CMake_TEST_FindMatlab_MCR_ROOT_DIR}" STREQUAL ""))
+  if(CMake_TEST_FindMatlab OR CMake_TEST_FindMatlab_ROOT_DIR OR
+     CMake_TEST_FindMatlab_MCR OR CMake_TEST_FindMatlab_MCR_ROOT_DIR)
     set(FindMatlab_additional_test_options )
-    if(CMake_TEST_FindMatlab_MCR OR NOT "${CMake_TEST_FindMatlab_MCR_ROOT_DIR}" STREQUAL "")
+    if(CMake_TEST_FindMatlab_MCR OR CMake_TEST_FindMatlab_MCR_ROOT_DIR)
       set(FindMatlab_additional_test_options -DIS_MCR=TRUE)
     endif()
-    if(NOT "${CMake_TEST_FindMatlab_ROOT_DIR}" STREQUAL "")
+    if(CMake_TEST_FindMatlab_ROOT_DIR)
       set(FindMatlab_additional_test_options ${FindMatlab_additional_test_options} "-DMatlab_ROOT_DIR=${CMake_TEST_FindMatlab_ROOT_DIR}")
     endif()
-    if(NOT "${CMake_TEST_FindMatlab_MCR_ROOT_DIR}" STREQUAL "")
+    if(CMake_TEST_FindMatlab_MCR_ROOT_DIR)
       set(FindMatlab_additional_test_options ${FindMatlab_additional_test_options} "-DMCR_ROOT:FILEPATH=${CMake_TEST_FindMatlab_MCR_ROOT_DIR}")
     endif()
     set(FindMatlab.basic_checks_BUILD_OPTIONS ${FindMatlab_additional_test_options})
@@ -1729,7 +1611,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     endif()
     add_test(${tutorial_test_name} ${CMAKE_CTEST_COMMAND}
       --build-and-test
-      "${CMake_SOURCE_DIR}/Tests/Tutorial/${step_name}"
+      "${CMake_SOURCE_DIR}/Help/guide/tutorial/${step_name}"
       ${tutorial_build_dir}_Build
       ${build_generator_args}
       --build-project Tutorial
@@ -2001,6 +1883,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
       ADD_TEST_MACRO(PrecompiledHeader foo)
     endif()
+    set(MSVCRuntimeLibrary_BUILD_OPTIONS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
     ADD_TEST_MACRO(MSVCRuntimeLibrary)
     if(CMAKE_Fortran_COMPILER)
       ADD_TEST_MACRO(MSVCRuntimeLibrary.Fortran)
@@ -2290,7 +2173,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
       foreach(STP RANGE 1 4)
         add_test(NAME "TutorialStep${STP}.${name}" COMMAND ${CMAKE_CTEST_COMMAND}
           --build-and-test
-          "${CMake_SOURCE_DIR}/Tests/Tutorial/Step${STP}"
+          "${CMake_SOURCE_DIR}/Help/guide/tutorial/Step${STP}"
           "${CMake_BINARY_DIR}/Tests/Tutorial/Step${STP}_${name}"
           --build-generator "${generator}"
           --build-project Tutorial
@@ -3643,6 +3526,24 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     --build-options ${build_options}
     --test-command IncludeDirectories)
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/IncludeDirectories")
+
+  if(CMAKE_GENERATOR MATCHES "^((Unix|MSYS) Makefiles|Ninja)$" AND
+     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.4)
+      OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
+      OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
+    add_test(IncludeDirectoriesCPATH ${CMAKE_CTEST_COMMAND}
+      --build-and-test
+      "${CMake_SOURCE_DIR}/Tests/IncludeDirectoriesCPATH"
+      "${CMake_BINARY_DIR}/Tests/IncludeDirectoriesCPATH"
+      --build-two-config
+      ${build_generator_args}
+      --build-project IncludeDirectoriesCPATH
+      --build-options ${build_options})
+    list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/IncludeDirectoriesCPATH")
+    set_tests_properties(IncludeDirectoriesCPATH
+      PROPERTIES
+        ENVIRONMENT "CPATH=${CMAKE_CURRENT_SOURCE_DIR}/IncludeDirectoriesCPATH/viacpath")
+  endif()
 
   add_test(InterfaceLinkLibraries ${CMAKE_CTEST_COMMAND}
     --build-and-test

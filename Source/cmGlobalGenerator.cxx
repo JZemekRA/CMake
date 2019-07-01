@@ -92,7 +92,6 @@ cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
   // how long to let try compiles run
   this->TryCompileTimeout = cmDuration::zero();
 
-  this->ExtraGenerator = nullptr;
   this->CurrentConfigureMakefile = nullptr;
   this->TryCompileOuterMakefile = nullptr;
 
@@ -113,7 +112,6 @@ cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
 cmGlobalGenerator::~cmGlobalGenerator()
 {
   this->ClearGeneratorMembers();
-  delete this->ExtraGenerator;
 }
 
 #if defined(CMAKE_BUILD_WITH_CMAKE)
@@ -331,6 +329,37 @@ bool cmGlobalGenerator::CheckTargetsForMissingSources() const
   return failed;
 }
 
+bool cmGlobalGenerator::CheckTargetsForType() const
+{
+  if (!this->GetLanguageEnabled("Swift")) {
+    return false;
+  }
+  bool failed = false;
+  for (cmLocalGenerator* generator : this->LocalGenerators) {
+    for (cmGeneratorTarget* target : generator->GetGeneratorTargets()) {
+      std::vector<std::string> configs;
+      target->Makefile->GetConfigurations(configs);
+      if (configs.empty()) {
+        configs.emplace_back();
+      }
+
+      for (std::string const& config : configs) {
+        if (target->GetLinkerLanguage(config) == "Swift") {
+          if (target->GetPropertyAsBool("WIN32_EXECUTABLE")) {
+            this->GetCMakeInstance()->IssueMessage(
+              MessageType::FATAL_ERROR,
+              "WIN32_EXECUTABLE property is not supported on Swift "
+              "executables",
+              target->GetBacktrace());
+            failed = true;
+          }
+        }
+      }
+    }
+  }
+  return failed;
+}
+
 bool cmGlobalGenerator::IsExportedTargetsFile(
   const std::string& filename) const
 {
@@ -535,11 +564,22 @@ void cmGlobalGenerator::EnableLanguage(
 
 #  ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
 #    pragma warning(push)
-#    pragma warning(disable : 4996)
+#    ifdef __INTEL_COMPILER
+#      pragma warning(disable : 1478)
+#    elif defined __clang__
+#      pragma clang diagnostic push
+#      pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#    else
+#      pragma warning(disable : 4996)
+#    endif
 #  endif
     GetVersionExW((OSVERSIONINFOW*)&osviex);
 #  ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-#    pragma warning(pop)
+#    ifdef __clang__
+#      pragma clang diagnostic pop
+#    else
+#      pragma warning(pop)
+#    endif
 #  endif
     std::ostringstream windowsVersionString;
     windowsVersionString << osviex.dwMajorVersion << "."
@@ -1403,6 +1443,10 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
+  if (this->CheckTargetsForType()) {
+    return false;
+  }
+
   for (cmLocalGenerator* localGen : this->LocalGenerators) {
     localGen->ComputeHomeRelativeOutputPath();
   }
@@ -1453,7 +1497,7 @@ void cmGlobalGenerator::Generate()
 
   this->WriteSummary();
 
-  if (this->ExtraGenerator != nullptr) {
+  if (this->ExtraGenerator) {
     this->ExtraGenerator->Generate();
   }
 
@@ -2674,8 +2718,8 @@ bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
 void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
   cmExternalMakefileProjectGenerator* extraGenerator)
 {
-  this->ExtraGenerator = extraGenerator;
-  if (this->ExtraGenerator != nullptr) {
+  this->ExtraGenerator.reset(extraGenerator);
+  if (this->ExtraGenerator) {
     this->ExtraGenerator->SetGlobalGenerator(this);
   }
 }

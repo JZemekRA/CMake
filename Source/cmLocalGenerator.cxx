@@ -88,6 +88,19 @@ cmLocalGenerator::cmLocalGenerator(cmGlobalGenerator* gg, cmMakefile* makefile)
 
   this->ComputeObjectMaxPath();
 
+  // Canonicalize entries of the CPATH environment variable the same
+  // way detection of CMAKE_<LANG>_IMPLICIT_INCLUDE_DIRECTORIES does.
+  {
+    std::vector<std::string> cpath;
+    cmSystemTools::GetPath(cpath, "CPATH");
+    for (std::string& cp : cpath) {
+      if (cmSystemTools::FileIsFullPath(cp)) {
+        cp = cmSystemTools::CollapseFullPath(cp);
+        this->EnvCPATH.emplace(std::move(cp));
+      }
+    }
+  }
+
   std::vector<std::string> enabledLanguages =
     this->GetState()->GetEnabledLanguages();
 
@@ -1004,16 +1017,26 @@ std::vector<BT<std::string>> cmLocalGenerator::GetIncludeDirectoriesImplicit(
     }
 
     for (std::string const& i : impDirVec) {
-      if (implicitSet.insert(i).second) {
+      if (implicitSet.insert(cmSystemTools::GetRealPath(i)).second) {
         implicitDirs.emplace_back(i);
       }
     }
   }
 
   // Checks if this is not an excluded (implicit) include directory.
-  auto notExcluded = [&implicitSet, &implicitExclude](std::string const& dir) {
-    return ((implicitSet.find(dir) == implicitSet.end()) &&
-            (implicitExclude.find(dir) == implicitExclude.end()));
+  auto notExcluded = [this, &implicitSet, &implicitExclude,
+                      &lang](std::string const& dir) {
+    return (
+      // Do not exclude directories that are not in an excluded set.
+      ((implicitSet.find(cmSystemTools::GetRealPath(dir)) ==
+        implicitSet.end()) &&
+       (implicitExclude.find(dir) == implicitExclude.end()))
+      // Do not exclude entries of the CPATH environment variable even though
+      // they are implicitly searched by the compiler.  They are meant to be
+      // user-specified directories that can be re-ordered or converted to
+      // -isystem without breaking real compiler builtin headers.
+      || ((lang == "C" || lang == "CXX") &&
+          (this->EnvCPATH.find(dir) != this->EnvCPATH.end())));
   };
 
   // Get the target-specific include directories.
@@ -1060,7 +1083,8 @@ std::vector<BT<std::string>> cmLocalGenerator::GetIncludeDirectoriesImplicit(
   if (!stripImplicitDirs) {
     // Append implicit directories that were requested by the user only
     for (BT<std::string> const& udr : userDirs) {
-      if (implicitSet.find(udr.Value) != implicitSet.end()) {
+      if (implicitSet.find(cmSystemTools::GetRealPath(udr.Value)) !=
+          implicitSet.end()) {
         emitBT(udr);
       }
     }
@@ -1147,30 +1171,34 @@ void cmLocalGenerator::GetTargetFlags(
       libraryLinkVariable = "CMAKE_MODULE_LINKER_FLAGS";
       CM_FALLTHROUGH;
     case cmStateEnums::SHARED_LIBRARY: {
-      linkFlags = this->Makefile->GetSafeDefinition(libraryLinkVariable);
-      linkFlags += " ";
-      if (!buildType.empty()) {
-        std::string build = libraryLinkVariable;
-        build += "_";
-        build += buildType;
-        linkFlags += this->Makefile->GetSafeDefinition(build);
+      if (linkLanguage != "Swift") {
+        linkFlags = this->Makefile->GetSafeDefinition(libraryLinkVariable);
         linkFlags += " ";
-      }
-      if (this->Makefile->IsOn("WIN32") &&
-          !(this->Makefile->IsOn("CYGWIN") || this->Makefile->IsOn("MINGW"))) {
-        std::vector<cmSourceFile*> sources;
-        target->GetSourceFiles(sources, buildType);
-        std::string defFlag =
-          this->Makefile->GetSafeDefinition("CMAKE_LINK_DEF_FILE_FLAG");
-        for (cmSourceFile* sf : sources) {
-          if (sf->GetExtension() == "def") {
-            linkFlags += defFlag;
-            linkFlags += this->ConvertToOutputFormat(
-              cmSystemTools::CollapseFullPath(sf->GetFullPath()), SHELL);
-            linkFlags += " ";
+        if (!buildType.empty()) {
+          std::string build = libraryLinkVariable;
+          build += "_";
+          build += buildType;
+          linkFlags += this->Makefile->GetSafeDefinition(build);
+          linkFlags += " ";
+        }
+        if (this->Makefile->IsOn("WIN32") &&
+            !(this->Makefile->IsOn("CYGWIN") ||
+              this->Makefile->IsOn("MINGW"))) {
+          std::vector<cmSourceFile*> sources;
+          target->GetSourceFiles(sources, buildType);
+          std::string defFlag =
+            this->Makefile->GetSafeDefinition("CMAKE_LINK_DEF_FILE_FLAG");
+          for (cmSourceFile* sf : sources) {
+            if (sf->GetExtension() == "def") {
+              linkFlags += defFlag;
+              linkFlags += this->ConvertToOutputFormat(
+                cmSystemTools::CollapseFullPath(sf->GetFullPath()), SHELL);
+              linkFlags += " ";
+            }
           }
         }
       }
+
       const char* targetLinkFlags = target->GetProperty("LINK_FLAGS");
       if (targetLinkFlags) {
         linkFlags += targetLinkFlags;
@@ -1185,6 +1213,7 @@ void cmLocalGenerator::GetTargetFlags(
           linkFlags += " ";
         }
       }
+
       std::vector<std::string> opts;
       target->GetLinkOptions(opts, config, linkLanguage);
       // LINK_OPTIONS are escaped.
@@ -1195,47 +1224,54 @@ void cmLocalGenerator::GetTargetFlags(
       }
     } break;
     case cmStateEnums::EXECUTABLE: {
-      linkFlags += this->Makefile->GetSafeDefinition("CMAKE_EXE_LINKER_FLAGS");
-      linkFlags += " ";
-      if (!buildType.empty()) {
-        std::string build = "CMAKE_EXE_LINKER_FLAGS_";
-        build += buildType;
-        linkFlags += this->Makefile->GetSafeDefinition(build);
+      if (linkLanguage != "Swift") {
+        linkFlags +=
+          this->Makefile->GetSafeDefinition("CMAKE_EXE_LINKER_FLAGS");
         linkFlags += " ";
+        if (!buildType.empty()) {
+          std::string build = "CMAKE_EXE_LINKER_FLAGS_";
+          build += buildType;
+          linkFlags += this->Makefile->GetSafeDefinition(build);
+          linkFlags += " ";
+        }
+        if (linkLanguage.empty()) {
+          cmSystemTools::Error(
+            "CMake can not determine linker language for target: " +
+            target->GetName());
+          return;
+        }
+
+        if (target->GetPropertyAsBool("WIN32_EXECUTABLE")) {
+          linkFlags +=
+            this->Makefile->GetSafeDefinition("CMAKE_CREATE_WIN32_EXE");
+          linkFlags += " ";
+        } else {
+          linkFlags +=
+            this->Makefile->GetSafeDefinition("CMAKE_CREATE_CONSOLE_EXE");
+          linkFlags += " ";
+        }
+
+        if (target->IsExecutableWithExports()) {
+          std::string exportFlagVar = "CMAKE_EXE_EXPORTS_";
+          exportFlagVar += linkLanguage;
+          exportFlagVar += "_FLAG";
+
+          linkFlags += this->Makefile->GetSafeDefinition(exportFlagVar);
+          linkFlags += " ";
+        }
       }
-      if (linkLanguage.empty()) {
-        cmSystemTools::Error(
-          "CMake can not determine linker language for target: " +
-          target->GetName());
-        return;
-      }
+
       this->AddLanguageFlagsForLinking(flags, target, linkLanguage, buildType);
       if (pcli) {
         this->OutputLinkLibraries(pcli, linkLineComputer, linkLibs,
                                   frameworkPath, linkPath);
       }
+
       if (cmSystemTools::IsOn(
             this->Makefile->GetDefinition("BUILD_SHARED_LIBS"))) {
         std::string sFlagVar = std::string("CMAKE_SHARED_BUILD_") +
           linkLanguage + std::string("_FLAGS");
         linkFlags += this->Makefile->GetSafeDefinition(sFlagVar);
-        linkFlags += " ";
-      }
-      if (target->GetPropertyAsBool("WIN32_EXECUTABLE")) {
-        linkFlags +=
-          this->Makefile->GetSafeDefinition("CMAKE_CREATE_WIN32_EXE");
-        linkFlags += " ";
-      } else {
-        linkFlags +=
-          this->Makefile->GetSafeDefinition("CMAKE_CREATE_CONSOLE_EXE");
-        linkFlags += " ";
-      }
-      if (target->IsExecutableWithExports()) {
-        std::string exportFlagVar = "CMAKE_EXE_EXPORTS_";
-        exportFlagVar += linkLanguage;
-        exportFlagVar += "_FLAG";
-
-        linkFlags += this->Makefile->GetSafeDefinition(exportFlagVar);
         linkFlags += " ";
       }
 
@@ -1260,6 +1296,7 @@ void cmLocalGenerator::GetTargetFlags(
           linkFlags += " ";
         }
       }
+
       std::vector<std::string> opts;
       target->GetLinkOptions(opts, config, linkLanguage);
       // LINK_OPTIONS are escaped.
@@ -1409,10 +1446,23 @@ void cmLocalGenerator::OutputLinkLibraries(
 
   std::string linkLanguage = cli.GetLinkLanguage();
 
-  const std::string& libPathFlag =
-    this->Makefile->GetRequiredDefinition("CMAKE_LIBRARY_PATH_FLAG");
-  const std::string& libPathTerminator =
-    this->Makefile->GetSafeDefinition("CMAKE_LIBRARY_PATH_TERMINATOR");
+  std::string libPathFlag;
+  if (const char* value = this->Makefile->GetDefinition(
+        "CMAKE_" + cli.GetLinkLanguage() + "_LIBRARY_PATH_FLAG")) {
+    libPathFlag = value;
+  } else {
+    libPathFlag =
+      this->Makefile->GetRequiredDefinition("CMAKE_LIBRARY_PATH_FLAG");
+  }
+
+  std::string libPathTerminator;
+  if (const char* value = this->Makefile->GetDefinition(
+        "CMAKE_" + cli.GetLinkLanguage() + "_LIBRARY_PATH_TERMINATOR")) {
+    libPathTerminator = value;
+  } else {
+    libPathTerminator =
+      this->Makefile->GetRequiredDefinition("CMAKE_LIBRARY_PATH_TERMINATOR");
+  }
 
   // Add standard libraries for this language.
   std::string standardLibsVar = "CMAKE_";
@@ -1892,7 +1942,9 @@ static void AddVisibilityCompileOption(std::string& flags,
       strcmp(prop, "protected") != 0 && strcmp(prop, "internal") != 0) {
     std::ostringstream e;
     e << "Target " << target->GetName() << " uses unsupported value \"" << prop
-      << "\" for " << flagDefine << ".";
+      << "\" for " << flagDefine << "."
+      << " The supported values are: default, hidden, protected, and "
+         "internal.";
     cmSystemTools::Error(e.str());
     return;
   }

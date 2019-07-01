@@ -141,12 +141,12 @@ cmake::cmake(Role role, cmState::Mode mode)
   this->DebugOutput = false;
   this->DebugTryCompile = false;
   this->ClearBuildSystem = false;
-  this->FileTimeCache = new cmFileTimeCache;
+  this->FileTimeCache = cm::make_unique<cmFileTimeCache>();
 
-  this->State = new cmState;
+  this->State = cm::make_unique<cmState>();
   this->State->SetMode(mode);
   this->CurrentSnapshot = this->State->CreateBaseSnapshot();
-  this->Messenger = new cmMessenger;
+  this->Messenger = cm::make_unique<cmMessenger>();
 
 #ifdef __APPLE__
   struct rlimit rlp;
@@ -165,7 +165,7 @@ cmake::cmake(Role role, cmState::Mode mode)
   this->CurrentWorkingMode = NORMAL_MODE;
 
 #ifdef CMAKE_BUILD_WITH_CMAKE
-  this->VariableWatch = new cmVariableWatch;
+  this->VariableWatch = cm::make_unique<cmVariableWatch>();
 #endif
 
   this->AddDefaultGenerators();
@@ -222,17 +222,11 @@ cmake::cmake(Role role, cmState::Mode mode)
 
 cmake::~cmake()
 {
-  delete this->State;
-  delete this->Messenger;
   if (this->GlobalGenerator) {
     delete this->GlobalGenerator;
     this->GlobalGenerator = nullptr;
   }
   cmDeleteAll(this->Generators);
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  delete this->VariableWatch;
-#endif
-  delete this->FileTimeCache;
 }
 
 #if defined(CMAKE_BUILD_WITH_CMAKE)
@@ -248,7 +242,7 @@ Json::Value cmake::ReportVersionJson() const
   return version;
 }
 
-Json::Value cmake::ReportCapabilitiesJson(bool haveServerMode) const
+Json::Value cmake::ReportCapabilitiesJson() const
 {
   Json::Value obj = Json::objectValue;
 
@@ -284,18 +278,19 @@ Json::Value cmake::ReportCapabilitiesJson(bool haveServerMode) const
     generators.append(i.second);
   }
   obj["generators"] = generators;
-  obj["serverMode"] = haveServerMode;
+  obj["fileApi"] = cmFileAPI::ReportCapabilities();
+  obj["serverMode"] = true;
 
   return obj;
 }
 #endif
 
-std::string cmake::ReportCapabilities(bool haveServerMode) const
+std::string cmake::ReportCapabilities() const
 {
   std::string result;
 #if defined(CMAKE_BUILD_WITH_CMAKE)
   Json::FastWriter writer;
-  result = writer.write(this->ReportCapabilitiesJson(haveServerMode));
+  result = writer.write(this->ReportCapabilitiesJson());
 #else
   result = "Not supported";
 #endif
@@ -459,7 +454,7 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
         return false;
       }
       // Register fake project commands that hint misuse in script mode.
-      GetProjectCommandsInScriptMode(this->State);
+      GetProjectCommandsInScriptMode(this->GetState());
       this->ReadListFile(args, path);
     } else if (arg.find("--find-package", 0) == 0) {
       findPackageMode = true;
@@ -1897,12 +1892,12 @@ const char* cmake::GetCacheDefinition(const std::string& name) const
 
 void cmake::AddScriptingCommands()
 {
-  GetScriptingCommands(this->State);
+  GetScriptingCommands(this->GetState());
 }
 
 void cmake::AddProjectCommands()
 {
-  GetProjectCommands(this->State);
+  GetProjectCommands(this->GetState());
 }
 
 void cmake::AddDefaultGenerators()
@@ -2604,11 +2599,6 @@ std::vector<std::string> cmake::GetDebugConfigs()
     configs.emplace_back("DEBUG");
   }
   return configs;
-}
-
-cmMessenger* cmake::GetMessenger() const
-{
-  return this->Messenger;
 }
 
 int cmake::Build(int jobs, const std::string& dir,

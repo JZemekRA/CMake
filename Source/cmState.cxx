@@ -23,14 +23,12 @@
 
 cmState::cmState()
 {
-  this->CacheManager = new cmCacheManager;
-  this->GlobVerificationManager = new cmGlobVerificationManager;
+  this->CacheManager = cm::make_unique<cmCacheManager>();
+  this->GlobVerificationManager = cm::make_unique<cmGlobVerificationManager>();
 }
 
 cmState::~cmState()
 {
-  delete this->CacheManager;
-  delete this->GlobVerificationManager;
   cmDeleteAll(this->BuiltinCommands);
   cmDeleteAll(this->ScriptedCommands);
 }
@@ -267,7 +265,7 @@ void cmState::RemoveCacheEntryProperty(std::string const& key,
 
 cmStateSnapshot cmState::Reset()
 {
-  this->GlobalProperties.clear();
+  this->GlobalProperties.Clear();
   this->PropertyDefinitions.clear();
   this->GlobVerificationManager->Reset();
 
@@ -289,7 +287,7 @@ cmStateSnapshot cmState::Reset()
     it->LinkDirectoriesBacktraces.clear();
     it->DirectoryEnd = pos;
     it->NormalTargetNames.clear();
-    it->Properties.clear();
+    it->Properties.Clear();
     it->Children.clear();
   }
 

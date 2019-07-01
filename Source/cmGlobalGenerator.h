@@ -609,6 +609,7 @@ private:
   virtual void ForceLinkerLanguages();
 
   bool CheckTargetsForMissingSources() const;
+  bool CheckTargetsForType() const;
 
   void CreateLocalGenerators();
 
@@ -617,7 +618,7 @@ private:
 
   void ComputeBuildFileGenerators();
 
-  cmExternalMakefileProjectGenerator* ExtraGenerator;
+  std::unique_ptr<cmExternalMakefileProjectGenerator> ExtraGenerator;
 
   // track files replaced during a Generate
   std::vector<std::string> FilesReplacedDuringGenerate;

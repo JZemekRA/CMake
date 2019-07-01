@@ -24,6 +24,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmSourceFile.h"
 #include "cmSystemTools.h"
+#include "cmCustomCommand.h"
 #include <stdlib.h>
 #include <cstdlib>
 #include <assert.h>
@@ -725,7 +726,7 @@ void cmGlobalIarGenerator::Generate()
     const cmMakefile* makeFile = it->second[0]->GetMakefile();
 
     // create a project file
-    if (strcmp(makeFile->GetCurrentBinaryDirectory(),
+    if (strcmp(makeFile->GetCurrentBinaryDirectory().c_str(),
         makeFile->GetHomeOutputDirectory().c_str()) == 0)
       {
       this->workspace.workspaceDir = makeFile->GetCurrentBinaryDirectory();
@@ -1055,7 +1056,7 @@ void cmGlobalIarGenerator::GetCmdLines(std::vector<cmCustomCommand> const& rTmpC
         rBuildCmd += std::string("REM Description: ")+(*it).GetComment()+"\n";
         rBuildCmd += "\n";
         rBuildCmd += "REM Change working directory:\n";
-        std::string cwd = std::string(it->GetWorkingDirectory());
+        std::string cwd = std::string((*it).GetWorkingDirectory());
         //std::replace( cwd.begin(), cwd.end(), '/', '\\');
         rBuildCmd += "cd " + cwd + "\n";
         rBuildCmd += "REM Executing command lines:\n";
@@ -1115,13 +1116,13 @@ void cmGlobalIarGenerator::ConvertTargetToProject(const cmTarget& tgt,
   project->binaryDir = this->workspace.workspaceDir;
 
   // INCLUDE DIRECTORIES: Gather all includes.
-  const std::vector<std::string> includeDirsVector =
+  const std::vector <BT<std::string>> includeDirsVector =
       genTgt->GetIncludeDirectories("", "C");
-  for(std::vector<std::string>::const_iterator it =
+  for (std::vector<BT<std::string>>::const_iterator it =
       includeDirsVector.begin();
       it != includeDirsVector.end(); ++it)
     {
-    project->includes.push_back(*it);
+    project->includes.push_back((*it).Value);
     }
 
   // SOURCE FILES: Gather all sources.
@@ -1167,7 +1168,7 @@ void cmGlobalIarGenerator::ConvertTargetToProject(const cmTarget& tgt,
   cmdHdr.reserve(1024);
 
   cmdHdr += "REM ==========================================================\n";
-  cmdHdr += "REM This file has been generated from CMake extraIarGenerator.\n";
+  cmdHdr += "REM This file has been generated from CMake cmGlobalIarGenerator.\n";
   cmdHdr += "REM DO NOT EDIT.\n";
   cmdHdr += "REM ==========================================================\n\n";
 

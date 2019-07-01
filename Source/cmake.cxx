@@ -88,7 +88,7 @@
 #endif
 
 #ifdef CMAKE_USE_IAR
-#include "cmExtraIarGenerator.h"
+#include "cmGlobalIarGenerator.h"
 #endif
 
 #if defined(__linux__) || defined(_WIN32)
@@ -1046,10 +1046,6 @@ void cmake::AddDefaultExtraGenerators()
 #ifdef CMAKE_USE_KDEVELOP
   this->ExtraGenerators.push_back(cmGlobalKdevelopGenerator::GetFactory());
 #endif
-
-#ifdef CMAKE_USE_IAR
-  this->ExtraGenerators.push_back(cmExtraIarGenerator::GetFactory());
-#endif
 #endif
 }
 
@@ -1953,6 +1949,9 @@ void cmake::AddDefaultGenerators()
 #endif
 #ifdef CMAKE_USE_XCODE
   this->Generators.push_back(cmGlobalXCodeGenerator::NewFactory());
+#endif
+#ifdef CMAKE_USE_IAR
+  this->Generators.push_back(cmGlobalIarGenerator::NewFactory());
 #endif
 }
 

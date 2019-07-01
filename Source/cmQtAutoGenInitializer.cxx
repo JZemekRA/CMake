@@ -407,6 +407,19 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
         }
       }
     }
+
+    // CMAKE_AUTOMOC_RELAXED_MODE deprecation warning
+    if (this->Moc.Enabled) {
+      if (cmSystemTools::IsOn(
+            makefile->GetDefinition("CMAKE_AUTOMOC_RELAXED_MODE"))) {
+        std::string msg = "AUTOMOC: CMAKE_AUTOMOC_RELAXED_MODE is "
+                          "deprecated an will be removed in the future.  ";
+        msg += "Consider disabling it and converting the target ";
+        msg += this->Target->GetName();
+        msg += " to regular mode.";
+        makefile->IssueMessage(MessageType::AUTHOR_WARNING, msg);
+      }
+    }
   }
 
   // Init rcc specific settings
@@ -708,9 +721,9 @@ bool cmQtAutoGenInitializer::InitScanFiles()
       MUFile const& muf = *pair.second;
       if (muf.MocIt || muf.UicIt) {
         // Search for the default header file and a private header
-        std::string const& realPath = muf.RealPath;
-        std::string basePath = cmQtAutoGen::SubDirPrefix(realPath);
-        basePath += cmSystemTools::GetFilenameWithoutLastExtension(realPath);
+        std::string const& srcPath = muf.SF->GetFullPath();
+        std::string basePath = cmQtAutoGen::SubDirPrefix(srcPath);
+        basePath += cmSystemTools::GetFilenameWithoutLastExtension(srcPath);
         for (auto const& suffix : suffixes) {
           std::string const suffixedPath = basePath + suffix;
           for (auto const& ext : exts) {

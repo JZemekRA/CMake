@@ -103,7 +103,7 @@ void CMakeCommandUsage(const char* program)
     << "  sha512sum <file>...       - create SHA512 checksum of files\n"
     << "  remove [-f] <file>...     - remove the file(s), use -f to force "
        "it\n"
-    << "  remove_directory dir      - remove a directory and its contents\n"
+    << "  remove_directory <dir>... - remove directories and their contents\n"
     << "  rename oldname newname    - rename a file or directory "
        "(on one volume)\n"
     << "  server                    - start cmake in server mode\n"
@@ -661,7 +661,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
 #endif
 
     if (args[1] == "make_directory" && args.size() > 2) {
-      // If error occurs we want to continue copying next files.
+      // If an error occurs, we want to continue making directories.
       bool return_value = false;
       for (auto const& arg : cmMakeRange(args).advance(2)) {
         if (!cmSystemTools::MakeDirectory(arg)) {
@@ -672,13 +672,17 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       return return_value;
     }
 
-    if (args[1] == "remove_directory" && args.size() == 3) {
-      if (cmSystemTools::FileIsDirectory(args[2]) &&
-          !cmSystemTools::RemoveADirectory(args[2])) {
-        std::cerr << "Error removing directory \"" << args[2] << "\".\n";
-        return 1;
+    if (args[1] == "remove_directory" && args.size() > 2) {
+      // If an error occurs, we want to continue removing directories.
+      bool return_value = false;
+      for (auto const& arg : cmMakeRange(args).advance(2)) {
+        if (cmSystemTools::FileIsDirectory(arg) &&
+            !cmSystemTools::RemoveADirectory(arg)) {
+          std::cerr << "Error removing directory \"" << arg << "\".\n";
+          return_value = true;
+        }
       }
-      return 0;
+      return return_value;
     }
 
     // Remove file
@@ -730,11 +734,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
         return 1;
       }
       cmake cm(cmake::RoleInternal, cmState::Unknown);
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-      std::cout << cm.ReportCapabilities(true);
-#else
-      std::cout << cm.ReportCapabilities(false);
-#endif
+      std::cout << cm.ReportCapabilities();
       return 0;
     }
 
@@ -1043,11 +1043,17 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
       std::vector<std::string> files;
       std::string mtime;
       std::string format;
+      cmSystemTools::cmTarCompression compress =
+        cmSystemTools::TarCompressNone;
+      int nCompress = 0;
       bool doing_options = true;
       for (auto const& arg : cmMakeRange(args).advance(4)) {
         if (doing_options && cmHasLiteralPrefix(arg, "--")) {
           if (arg == "--") {
             doing_options = false;
+          } else if (arg == "--zstd") {
+            compress = cmSystemTools::TarCompressZstd;
+            ++nCompress;
           } else if (cmHasLiteralPrefix(arg, "--mtime=")) {
             mtime = arg.substr(8);
           } else if (cmHasLiteralPrefix(arg, "--files-from=")) {
@@ -1075,10 +1081,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
         }
       }
       cmSystemTools::cmTarAction action = cmSystemTools::TarActionNone;
-      cmSystemTools::cmTarCompression compress =
-        cmSystemTools::TarCompressNone;
       bool verbose = false;
-      int nCompress = 0;
 
       for (auto flag : flags) {
         switch (flag) {
@@ -1127,7 +1130,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
         return 1;
       }
       if (action == cmSystemTools::TarActionList) {
-        if (!cmSystemTools::ListTar(outFile.c_str(), files, verbose)) {
+        if (!cmSystemTools::ListTar(outFile, files, verbose)) {
           cmSystemTools::Error("Problem listing tar: " + outFile);
           return 1;
         }
@@ -1136,13 +1139,13 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string> const& args)
           cmSystemTools::Message("tar: No files or directories specified",
                                  "Warning");
         }
-        if (!cmSystemTools::CreateTar(outFile.c_str(), files, compress,
-                                      verbose, mtime, format)) {
+        if (!cmSystemTools::CreateTar(outFile, files, compress, verbose, mtime,
+                                      format)) {
           cmSystemTools::Error("Problem creating tar: " + outFile);
           return 1;
         }
       } else if (action == cmSystemTools::TarActionExtract) {
-        if (!cmSystemTools::ExtractTar(outFile.c_str(), files, verbose)) {
+        if (!cmSystemTools::ExtractTar(outFile, files, verbose)) {
           cmSystemTools::Error("Problem extracting tar: " + outFile);
           return 1;
         }

@@ -20,6 +20,7 @@
 
 #include <iterator>
 #include <memory> // IWYU pragma: keep
+#include <set>
 
 static void ConvertToWindowsSlash(std::string& s);
 
@@ -504,6 +505,11 @@ void cmVisualStudio10TargetGenerator::Generate()
         if (targetFrameworkVersion) {
           e1.Element("TargetFrameworkVersion", targetFrameworkVersion);
         }
+        if (this->ProjectType == vcxproj &&
+            this->GlobalGenerator->TargetsWindowsCE()) {
+          e1.Element("EnableRedirectPlatform", "true");
+          e1.Element("RedirectPlatformValue", this->Platform);
+        }
         if (this->ProjectType == csproj &&
             this->GlobalGenerator->TargetsWindowsCE()) {
           const char* targetFrameworkId = this->GeneratorTarget->GetProperty(
@@ -664,6 +670,7 @@ void cmVisualStudio10TargetGenerator::Generate()
     this->WriteCustomCommands(e0);
     this->WriteAllSources(e0);
     this->WriteDotNetReferences(e0);
+    this->WritePackageReferences(e0);
     this->WriteImports(e0);
     this->WriteEmbeddedResourceGroup(e0);
     this->WriteXamlFilesGroup(e0);
@@ -737,6 +744,33 @@ void cmVisualStudio10TargetGenerator::Generate()
   this->WriteGroups();
 }
 
+void cmVisualStudio10TargetGenerator::WritePackageReferences(Elem& e0)
+{
+  std::vector<std::string> packageReferences;
+  if (const char* vsPackageReferences =
+        this->GeneratorTarget->GetProperty("VS_PACKAGE_REFERENCES")) {
+    cmSystemTools::ExpandListArgument(vsPackageReferences, packageReferences);
+  }
+  if (!packageReferences.empty()) {
+    Elem e1(e0, "ItemGroup");
+    for (std::string const& ri : packageReferences) {
+      size_t versionIndex = ri.find_last_of('_');
+      if (versionIndex != std::string::npos) {
+        WritePackageReference(e1, ri.substr(0, versionIndex),
+                              ri.substr(versionIndex + 1));
+      }
+    }
+  }
+}
+
+void cmVisualStudio10TargetGenerator::WritePackageReference(
+  Elem& e1, std::string const& ref, std::string const& version)
+{
+  Elem e2(e1, "PackageReference");
+  e2.Attribute("Include", ref);
+  e2.Attribute("Version", version);
+}
+
 void cmVisualStudio10TargetGenerator::WriteDotNetReferences(Elem& e0)
 {
   std::vector<std::string> references;
@@ -745,11 +779,11 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReferences(Elem& e0)
     cmSystemTools::ExpandListArgument(vsDotNetReferences, references);
   }
   cmPropertyMap const& props = this->GeneratorTarget->Target->GetProperties();
-  for (auto const& i : props) {
+  for (auto const& i : props.GetList()) {
     if (i.first.find("VS_DOTNET_REFERENCE_") == 0) {
       std::string name = i.first.substr(20);
       if (!name.empty()) {
-        std::string path = i.second.GetValue();
+        std::string path = i.second;
         if (!cmsys::SystemTools::FileIsFullPath(path)) {
           path = this->Makefile->GetCurrentSourceDirectory() + "/" + path;
         }
@@ -841,10 +875,10 @@ void cmVisualStudio10TargetGenerator::WriteDotNetReferenceCustomTags(
   typedef std::map<std::string, std::string> CustomTags;
   CustomTags tags;
   cmPropertyMap const& props = this->GeneratorTarget->Target->GetProperties();
-  for (const auto& i : props) {
+  for (const auto& i : props.GetList()) {
     if (i.first.find(refPropFullPrefix) == 0) {
       std::string refTag = i.first.substr(refPropFullPrefix.length());
-      std::string refVal = i.second.GetValue();
+      std::string refVal = i.second;
       if (!refTag.empty() && !refVal.empty()) {
         tags[refTag] = refVal;
       }
@@ -938,12 +972,12 @@ void cmVisualStudio10TargetGenerator::WriteEmbeddedResourceGroup(Elem& e0)
           }
         }
         const cmPropertyMap& props = oi->GetProperties();
-        for (const auto& p : props) {
+        for (const std::string& p : props.GetKeys()) {
           static const std::string propNamePrefix = "VS_CSHARP_";
-          if (p.first.find(propNamePrefix) == 0) {
-            std::string tagName = p.first.substr(propNamePrefix.length());
+          if (p.find(propNamePrefix) == 0) {
+            std::string tagName = p.substr(propNamePrefix.length());
             if (!tagName.empty()) {
-              std::string value = props.GetPropertyValue(p.first);
+              std::string value = props.GetPropertyValue(p);
               if (!value.empty()) {
                 e2.Element(tagName.c_str(), value);
               }
@@ -1373,46 +1407,69 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
     comment = cmVS10EscapeComment(comment);
     std::string script = lg->ConstructScript(ccg);
     // input files for custom command
-    std::stringstream inputs;
-    inputs << source->GetFullPath();
-    for (std::string const& d : ccg.GetDepends()) {
-      std::string dep;
-      if (lg->GetRealDependency(d, c, dep)) {
-        ConvertToWindowsSlash(dep);
-        inputs << ";" << dep;
+    std::stringstream additional_inputs;
+    {
+      const char* sep = "";
+      if (this->ProjectType == csproj) {
+        // csproj files do not attach the command to a specific file
+        // so the primary input must be listed explicitly.
+        additional_inputs << source->GetFullPath();
+        sep = ";";
+      }
+
+      // Avoid listing an input more than once.
+      std::set<std::string> unique_inputs;
+      // The source is either implicit an input or has been added above.
+      unique_inputs.insert(source->GetFullPath());
+
+      for (std::string const& d : ccg.GetDepends()) {
+        std::string dep;
+        if (lg->GetRealDependency(d, c, dep)) {
+          if (!unique_inputs.insert(dep).second) {
+            // already listed
+            continue;
+          }
+          ConvertToWindowsSlash(dep);
+          additional_inputs << sep << dep;
+          sep = ";";
+        }
+      }
+      if (this->ProjectType != csproj) {
+        additional_inputs << sep << "%(AdditionalInputs)";
       }
     }
     // output files for custom command
     std::stringstream outputs;
-    const char* sep = "";
-    for (std::string const& o : ccg.GetOutputs()) {
-      std::string out = o;
-      ConvertToWindowsSlash(out);
-      outputs << sep << out;
-      sep = ";";
+    {
+      const char* sep = "";
+      for (std::string const& o : ccg.GetOutputs()) {
+        std::string out = o;
+        ConvertToWindowsSlash(out);
+        outputs << sep << out;
+        sep = ";";
+      }
     }
     if (this->ProjectType == csproj) {
       std::string name = "CustomCommand_" + c + "_" +
         cmSystemTools::ComputeStringMD5(sourcePath);
-      this->WriteCustomRuleCSharp(e0, c, name, script, inputs.str(),
+      this->WriteCustomRuleCSharp(e0, c, name, script, additional_inputs.str(),
                                   outputs.str(), comment);
     } else {
-      this->WriteCustomRuleCpp(*spe2, c, script, inputs.str(), outputs.str(),
-                               comment);
+      this->WriteCustomRuleCpp(*spe2, c, script, additional_inputs.str(),
+                               outputs.str(), comment);
     }
   }
 }
 
 void cmVisualStudio10TargetGenerator::WriteCustomRuleCpp(
   Elem& e2, std::string const& config, std::string const& script,
-  std::string const& inputs, std::string const& outputs,
+  std::string const& additional_inputs, std::string const& outputs,
   std::string const& comment)
 {
   const std::string cond = this->CalcCondition(config);
   e2.WritePlatformConfigTag("Message", cond, comment);
   e2.WritePlatformConfigTag("Command", cond, script);
-  e2.WritePlatformConfigTag("AdditionalInputs", cond,
-                            inputs + ";%(AdditionalInputs)");
+  e2.WritePlatformConfigTag("AdditionalInputs", cond, additional_inputs);
   e2.WritePlatformConfigTag("Outputs", cond, outputs);
   if (this->LocalGenerator->GetVersion() >
       cmGlobalVisualStudioGenerator::VS10) {
@@ -2858,10 +2915,9 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
   Options& cudaOptions = *pOptions;
 
   // Get compile flags for CUDA in this directory.
-  std::string CONFIG = cmSystemTools::UpperCase(configName);
-  std::string configFlagsVar = "CMAKE_CUDA_FLAGS_" + CONFIG;
-  std::string flags = this->Makefile->GetSafeDefinition("CMAKE_CUDA_FLAGS") +
-    " " + this->Makefile->GetSafeDefinition(configFlagsVar);
+  std::string flags;
+  this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget, "CUDA",
+                                         configName);
   this->LocalGenerator->AddCompileOptions(flags, this->GeneratorTarget, "CUDA",
                                           configName);
 
@@ -3062,11 +3118,9 @@ bool cmVisualStudio10TargetGenerator::ComputeMasmOptions(
     this->LocalGenerator, Options::MasmCompiler, gg->GetMasmFlagTable());
   Options& masmOptions = *pOptions;
 
-  std::string CONFIG = cmSystemTools::UpperCase(configName);
-  std::string configFlagsVar = "CMAKE_ASM_MASM_FLAGS_" + CONFIG;
-  std::string flags =
-    this->Makefile->GetSafeDefinition("CMAKE_ASM_MASM_FLAGS") + " " +
-    this->Makefile->GetSafeDefinition(configFlagsVar);
+  std::string flags;
+  this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,
+                                         "ASM_MASM", configName);
 
   masmOptions.Parse(flags);
 
@@ -3116,12 +3170,11 @@ bool cmVisualStudio10TargetGenerator::ComputeNasmOptions(
     this->LocalGenerator, Options::NasmCompiler, gg->GetNasmFlagTable());
   Options& nasmOptions = *pOptions;
 
-  std::string CONFIG = cmSystemTools::UpperCase(configName);
-  std::string configFlagsVar = "CMAKE_ASM_NASM_FLAGS_" + CONFIG;
-  std::string flags =
-    this->Makefile->GetSafeDefinition("CMAKE_ASM_NASM_FLAGS") + " -f" +
-    this->Makefile->GetSafeDefinition("CMAKE_ASM_NASM_OBJECT_FORMAT") + " " +
-    this->Makefile->GetSafeDefinition(configFlagsVar);
+  std::string flags;
+  this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,
+                                         "ASM_NASM", configName);
+  flags += " -f";
+  flags += this->Makefile->GetSafeDefinition("CMAKE_ASM_NASM_OBJECT_FORMAT");
   nasmOptions.Parse(flags);
 
   // Get includes for this target
@@ -3200,15 +3253,32 @@ void cmVisualStudio10TargetGenerator::WriteManifestOptions(
 
   std::vector<cmSourceFile const*> manifest_srcs;
   this->GeneratorTarget->GetManifests(manifest_srcs, config);
-  if (!manifest_srcs.empty()) {
-    std::ostringstream oss;
-    for (cmSourceFile const* mi : manifest_srcs) {
-      std::string m = this->ConvertPath(mi->GetFullPath(), false);
-      ConvertToWindowsSlash(m);
-      oss << m << ";";
-    }
+
+  const char* dpiAware = this->GeneratorTarget->GetProperty("VS_DPI_AWARE");
+
+  if (!manifest_srcs.empty() || dpiAware) {
     Elem e2(e1, "Manifest");
-    e2.Element("AdditionalManifestFiles", oss.str());
+    if (!manifest_srcs.empty()) {
+      std::ostringstream oss;
+      for (cmSourceFile const* mi : manifest_srcs) {
+        std::string m = this->ConvertPath(mi->GetFullPath(), false);
+        ConvertToWindowsSlash(m);
+        oss << m << ";";
+      }
+      e2.Element("AdditionalManifestFiles", oss.str());
+    }
+    if (dpiAware) {
+      if (!strcmp(dpiAware, "PerMonitor")) {
+        e2.Element("EnableDpiAwareness", "PerMonitorHighDPIAware");
+      } else if (cmSystemTools::IsOn(dpiAware)) {
+        e2.Element("EnableDpiAwareness", "true");
+      } else if (cmSystemTools::IsOff(dpiAware)) {
+        e2.Element("EnableDpiAwareness", "false");
+      } else {
+        cmSystemTools::Error("Bad parameter for VS_DPI_AWARE: " +
+                             std::string(dpiAware));
+      }
+    }
   }
 }
 
@@ -4629,12 +4699,12 @@ void cmVisualStudio10TargetGenerator::GetCSharpSourceProperties(
 {
   if (this->ProjectType == csproj) {
     const cmPropertyMap& props = sf->GetProperties();
-    for (auto const& p : props) {
+    for (const std::string& p : props.GetKeys()) {
       static const std::string propNamePrefix = "VS_CSHARP_";
-      if (p.first.find(propNamePrefix) == 0) {
-        std::string tagName = p.first.substr(propNamePrefix.length());
+      if (p.find(propNamePrefix) == 0) {
+        std::string tagName = p.substr(propNamePrefix.length());
         if (!tagName.empty()) {
-          const std::string val = props.GetPropertyValue(p.first);
+          const std::string val = props.GetPropertyValue(p);
           if (!val.empty()) {
             tags[tagName] = val;
           } else {

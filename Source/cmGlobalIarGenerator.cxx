@@ -12,12 +12,22 @@
   See the License for more information.
 ============================================================================*/
 
-#include <future>
-#include <iostream>
 #include <objbase.h>
 #include <shellapi.h>
 #include <windows.h>
 
+#include <future>
+#include <iostream>
+#include <cstdlib>
+#include <cassert>
+#include <algorithm>
+
+#include "cmake.h"
+#include "cmGlobalIarGenerator.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmLocalIarGenerator.h"
+#include "cmTimestamp.h"
 #include "cmMakefile.h"
 #include "cmGeneratedFileStream.h"
 #include "cmTarget.h"
@@ -25,17 +35,9 @@
 #include "cmSourceFile.h"
 #include "cmSystemTools.h"
 #include "cmCustomCommand.h"
-#include <stdlib.h>
-#include <cstdlib>
-#include <assert.h>
-#include "cmGlobalIarGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmLocalIarGenerator.h"
 
 #include <cmsys/Glob.hxx>
 
-#include <algorithm>
 
 /// @brief XML Declaration.
 const char* cmGlobalIarGenerator::XML_DECL =
@@ -518,6 +520,7 @@ public:
 cmGlobalIarGenerator::cmGlobalIarGenerator(cmake* cm)
 : cmGlobalGenerator(cm)
 {
+    cm->GetState()->SetIarIDE(true);
 }
 
 cmGlobalIarGenerator::~cmGlobalIarGenerator()
@@ -558,7 +561,9 @@ std::string cmGlobalIarGenerator::FindIarBuildCommand()
     std::vector<std::string> userPaths;
     userPaths.push_back(commonBin);
 
-    /*printf("USER PATH: %s\n", commonBin.c_str());*/
+    // TODO COMMENT
+    // cmSystemTools::Message(std::string("USER PATH: ") + commonBin);
+    // END TODO
 
     std::string makeProgram =
       cmSystemTools::FindProgram(DEFAULT_MAKE_PROGRAM, userPaths);
@@ -579,41 +584,61 @@ bool cmGlobalIarGenerator::FindMakeProgram(cmMakefile* mf)
     mf->AddDefinition("CMAKE_MAKE_PROGRAM",
                       this->FindIarBuildCommand().c_str());
   }
+
   return true;
 }
 
 
-void cmGlobalIarGenerator::GenerateBuildCommand(
-  std::vector<std::string>& makeCommand, const std::string& makeProgram,
-  const std::string& /*projectName*/, const std::string& projectDir,
-  const std::string& targetName, const std::string& /*config*/, bool /*fast*/,
-  int jobs, bool /*verbose*/, std::vector<std::string> const& makeOptions)
+std::vector<cmGlobalGenerator::GeneratedMakeCommand>
+cmGlobalIarGenerator::GenerateBuildCommand(
+  const std::string& makeProgram, const std::string& projectName,
+  const std::string& projectDir, std::vector<std::string> const& targetNames,
+  const std::string& config, bool /*fast*/, int jobs, bool /*verbose*/,
+  std::vector<std::string> const& makeOptions)
 {
-    if (targetName == "preinstall")
-    {
-        makeCommand.push_back("echo");
-        makeCommand.push_back("Skipping target " + targetName);
-        return;
-    }
-  std::string projName = projectDir + "/" + targetName + ".ewp";
+  cmGlobalGenerator::GeneratedMakeCommand makeCommand = {};
 
-  makeCommand.push_back(
+  makeCommand.Add(
     this->SelectMakeProgram(makeProgram, this->FindIarBuildCommand()));
 
-  makeCommand.insert(makeCommand.end(), makeOptions.begin(),
-                     makeOptions.end());
-  if (!targetName.empty()) {
-    if (targetName == "clean") {
-      makeCommand.push_back("-clean");
+  makeCommand.Add(makeOptions.begin(), makeOptions.end());
+
+  if (!targetNames.empty()) {
+    if (std::find(targetNames.begin(), targetNames.end(), "clean") !=
+        targetNames.end()) {
+      makeCommand.Add("-clean");
+    } else {
+      for (const auto& tname : targetNames) {
+        if (!tname.empty()) {
+          makeCommand.Add(tname + ".ewp");
+        }
+      }
     }
-    makeCommand.push_back(projName);
   }
+
+  makeCommand.Add("-build");
+  std::string buildType = cmGlobalIarGenerator::GLOBALCFG.buildType;
+  if (this->GLOBALCFG.buildType.empty()) {
+    buildType = "Release";
+  }
+
+  makeCommand.Add(buildType);
+
+  // TODO COMMENT
+  // cmSystemTools::Message(makeCommand.Printable());
+  // END TODO
+
+  return { makeCommand };
 }
 
 
 //----------------------------------------------------------------------------
 void cmGlobalIarGenerator::Generate()
 {
+    // TODO COMMENT
+    // cmSystemTools::Message(std::string("Generation has started..."));
+    // END TODO
+
   const cmLocalGenerator* const lgs0 =
       this->GetLocalGenerators()[0];
   const cmMakefile* globalMakefile = lgs0->GetMakefile();
@@ -1296,7 +1321,12 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   root.NewChild("fileVersion", "2");
 
   XmlNode* config = root.NewChild("configuration");
-  config->NewChild("name", this->buildCfg.name);
+  if (this->buildCfg.name.empty()) {
+    config->NewChild("name", this->buildCfg.isDebug ? "Debug" : "Release");
+  }
+  else {
+    config->NewChild("name", this->buildCfg.name);
+  }
 
   XmlNode* toolchain = config->NewChild("toolchain");
   toolchain->NewChild("name", this->buildCfg.toolchain);
@@ -2338,6 +2368,10 @@ bool cmGlobalIarGenerator::Open(const std::string& bindir,
     const std::string& projectName,
     bool dryRun)
 {
+    // TODO: COMMENT
+    // cmSystemTools::Message(std::string("Trying to OPEN: ") + bindir + "/" + projectName + ".eww");
+    // END TODO
+
     if (dryRun) {
         return cmSystemTools::FileExists(bindir + "/" + projectName + ".eww", true);
     }

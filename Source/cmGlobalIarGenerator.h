@@ -15,6 +15,8 @@
 #ifndef cmGlobalIarGenerator_h
 #define cmGlobalIarGenerator_h
 
+#include <vector>
+
 #include "cmGlobalGenerator.h"
 #include "cmGlobalGeneratorFactory.h"
 #include "cmDocumentationEntry.h"
@@ -79,6 +81,8 @@ public:
   bool Open(const std::string& bindir, const std::string& projectName,
             bool dryRun) override;
 
+  bool IsMultiConfig() const override {return false;};
+
   static std::string ToToolkitPath(std::string absolutePath);
 
   static std::string ToWorkbenchPath(std::string absolutePath);
@@ -87,12 +91,12 @@ public:
       const cmGeneratorTarget* genTgt);
 protected:
 
-  virtual void GenerateBuildCommand(
-    std::vector<std::string>& makeCommand, const std::string& makeProgram,
-    const std::string& projectName, const std::string& projectDir,
-    const std::string& targetName, const std::string& config, bool fast,
-    int jobs, bool verbose,
-    std::vector<std::string> const& makeOptions = std::vector<std::string>());
+  virtual std::vector<cmGlobalGenerator::GeneratedMakeCommand>
+    GenerateBuildCommand(
+    const std::string& makeProgram, const std::string& projectName,
+    const std::string& projectDir, std::vector<std::string> const& targetNames,
+    const std::string& config, bool /*fast*/, int jobs, bool /*verbose*/,
+    std::vector<std::string> const& makeOptions);
 private:
 
   std::string FindIarBuildCommand();

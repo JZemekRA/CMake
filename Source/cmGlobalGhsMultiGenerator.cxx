@@ -85,9 +85,14 @@ bool cmGlobalGhsMultiGenerator::SetGeneratorToolset(std::string const& ts,
     /* store the full toolset for later use
      * -- already done if -T<toolset> was specified
      */
+
+    // JKB: Do not store as cache for regeneration.
+    #if 0
     mf->AddCacheDefinition("CMAKE_GENERATOR_TOOLSET", tsp.c_str(),
                            "Location of generator toolset.",
                            cmStateEnums::INTERNAL);
+    #endif
+    // END JKB
   }
 
   /* set the build tool to use */
@@ -128,9 +133,14 @@ bool cmGlobalGhsMultiGenerator::SetGeneratorPlatform(std::string const& p,
     /* store the platform name for later use
      * -- already done if -A<arch> was specified
      */
+
+    // JKB: Do not store as cache for regeneration.
+    #if 0
     mf->AddCacheDefinition("CMAKE_GENERATOR_PLATFORM", arch.c_str(),
                            "Name of generator platform.",
                            cmStateEnums::INTERNAL);
+    #endif
+    // END JKB
   } else {
     arch = p;
   }
@@ -646,7 +656,12 @@ void cmGlobalGhsMultiGenerator::WriteHighLevelDirectives(
       this->GetCMakeInstance()->GetCacheDefinition("CMAKE_GENERATOR_PLATFORM");
     const char* p =
       this->GetCMakeInstance()->GetCacheDefinition("GHS_TARGET_PLATFORM");
+    // JKB: Do not store as cache for regeneration.
+#if 0
     tgt = (a ? a : "");
+#endif
+    tgt = (a ? a : "arm");
+    // END JKB
     tgt += "_";
     tgt += (p ? p : "");
     tgt += ".tgt";

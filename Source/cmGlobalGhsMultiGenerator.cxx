@@ -15,6 +15,13 @@
 #include "cmVersion.h"
 #include "cmake.h"
 
+// JKB: Open support
+#include <objbase.h>
+#include <shellapi.h>
+#include <windows.h>
+#include <future>
+// END JKB
+
 #include <algorithm>
 #include <map>
 #include <ostream>
@@ -767,3 +774,39 @@ bool cmGlobalGhsMultiGenerator::VisitTarget(
   /* already complete */
   return false;
 }
+
+// JKB: Open project with GHS Multi
+static bool OpenWorkspace(std::string workspace)
+{
+    HRESULT comInitialized =
+        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(comInitialized)) {
+        return false;
+    }
+
+    HINSTANCE hi =
+        ShellExecuteA(NULL, "open", workspace.c_str(), NULL, NULL, SW_SHOWNORMAL);
+
+    CoUninitialize();
+
+    return reinterpret_cast<intptr_t>(hi) > 32;
+}
+
+
+bool cmGlobalGhsMultiGenerator::Open(const std::string& bindir,
+    const std::string& projectName,
+    bool dryRun)
+{
+    std::string projFile = bindir + "/" + projectName + ".top" + FILE_EXTENSION;
+	// TODO: COMMENT
+	// cmSystemTools::Message(std::string("Trying to OPEN: ") + projFile);
+	// END TODO
+
+    if (dryRun) {
+        return cmSystemTools::FileExists(projFile, true);
+    }
+
+    return std::async(std::launch::async, OpenWorkspace, projFile).get();
+}
+
+// END JKB

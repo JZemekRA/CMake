@@ -15,8 +15,8 @@
 #include <objbase.h>
 #include <shellapi.h>
 #include <windows.h>
-
 #include <future>
+
 #include <iostream>
 #include <cstdlib>
 #include <cassert>
@@ -1171,9 +1171,13 @@ void cmGlobalIarGenerator::ConvertTargetToProject(const cmTarget& tgt,
   buildCfg.isDebug = (GLOBALCFG.buildType == "Debug");
   buildCfg.exeDir = buildCfg.name;
   buildCfg.objectDir = buildCfg.exeDir;
-  buildCfg.objectDir += "/Object";
   buildCfg.listDir = buildCfg.exeDir;
-  buildCfg.listDir += "/List";
+  if (!buildCfg.exeDir.empty()) {
+    buildCfg.objectDir += "/";
+    buildCfg.listDir += "/";
+  }
+  buildCfg.objectDir += "Object";
+  buildCfg.listDir += "List";
   buildCfg.toolchain = GLOBALCFG.tgtArch;
   buildCfg.outputFile = genTgt->GetExportName();
 
@@ -2368,13 +2372,14 @@ bool cmGlobalIarGenerator::Open(const std::string& bindir,
     const std::string& projectName,
     bool dryRun)
 {
-    // TODO: COMMENT
-    // cmSystemTools::Message(std::string("Trying to OPEN: ") + bindir + "/" + projectName + ".eww");
-    // END TODO
+	std::string projFile = bindir + "/" + projectName + ".eww";
+	// TODO: COMMENT
+	// cmSystemTools::Message(std::string("Trying to OPEN: ") + projFile);
+	// END TODO
 
     if (dryRun) {
-        return cmSystemTools::FileExists(bindir + "/" + projectName + ".eww", true);
+        return cmSystemTools::FileExists(projFile, true);
     }
 
-    return std::async(std::launch::async, OpenWorkspace, bindir + "/" + projectName + ".eww").get();
+    return std::async(std::launch::async, OpenWorkspace, projFile).get();
 }

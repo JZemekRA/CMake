@@ -663,6 +663,10 @@ void cmGlobalIarGenerator::Generate()
   flagsWithType = std::string("CMAKE_EXE_LINKER_FLAGS_") + cmSystemTools::UpperCase(GLOBALCFG.buildType);
   GLOBALCFG.iarLinkerFlags = globalMakefile->GetSafeDefinition("CMAKE_EXE_LINKER_FLAGS");
   GLOBALCFG.iarLinkerFlags += std::string(" ") + globalMakefile->GetSafeDefinition(flagsWithType);
+  
+  GLOBALCFG.iarLinkerFlags += std::string(" ") + this->GeneratorTarget->GetProperty("LINK_FLAGS");
+  std::string configLinkFlags = "LINK_FLAGS_" + cmSystemTools::UpperCase(GLOBALCFG.buildType);
+  GLOBALCFG.iarLinkerFlags += std::string(" ") + this->GeneratorTarget->GetProperty(configLinkFlags);
 
   GLOBALCFG.compilerDlibConfig =
       globalMakefile->GetSafeDefinition("IAR_COMPILER_DLIB_CONFIG");

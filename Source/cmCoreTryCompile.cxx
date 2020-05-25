@@ -69,6 +69,7 @@ static std::set<std::string> ghs_platform_vars{
 
 // IAR platform variables.
 static std::set<std::string> iar_platform_vars{
+    "IAR_EW_ROOT",
     "IAR_SET_INSTALLATION_FOLDER_MANUALLY",
     "IAR_DEBUGGER_LOGFILE",
     "IAR_COMPILER_DLIB_CONFIG",

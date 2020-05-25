@@ -1351,7 +1351,6 @@ void cmGlobalIarGenerator::ConvertTargetToProject(const cmTarget& tgt,
    lg->GetTargetFlags(&linkLineComputer, GLOBALCFG.buildType, linkLibs, flags,
                       linkFlags, frameworkPath, linkPath,
                       (cmGeneratorTarget*)genTgt);
-   cmSystemTools::Message(linkFlags);
 
    cmGlobalIarGenerator::ParseCmdLineOpts(
      linkFlags, cmGlobalIarGenerator::MULTIOPTS_LINKER,

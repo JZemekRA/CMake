@@ -35,6 +35,7 @@
 #include "cmSourceFile.h"
 #include "cmSystemTools.h"
 #include "cmCustomCommand.h"
+#include "cmLinkLineComputer.h"
 
 #include <cmsys/Glob.hxx>
 
@@ -47,6 +48,45 @@ const char* cmGlobalIarGenerator::PROJ_FILE_EXT = ".ewp";
 const char* cmGlobalIarGenerator::WS_FILE_EXT = ".eww";
 const char* cmGlobalIarGenerator::DEFAULT_MAKE_PROGRAM = "IarBuild.exe";
 
+const char* cmGlobalIarGenerator::MULTIOPTS_COMPILER[13] = {
+  "--dependencies",
+                                     "--diagnostics_tables",
+                                     "--dlib_config",
+                                     "-f",
+                                     "-l",
+                                     "--output",
+                                     "-o",
+                                     "--predef_macros",
+                                     "--preinclude",
+                                     "--preprocess",
+                                     "--public_equ",
+                                     "--section",
+                                     "--system_include_dir" };
+const char* cmGlobalIarGenerator::MULTIOPTS_LINKER[24] = {
+  "--call_graph",
+                                "--config",
+                                "--config_def",
+                                "--config_search",
+                                "--cpp_init_routine",
+                                "--define_symbol",
+                                "--dependencies",
+                                "--diagnostics_tables",
+                                "--entry",
+                                "--export_builtin_config",
+                                "--extra_init",
+                                "-f",
+                                "--image_input",
+                                "--keep",
+                                "--log",
+                                "--log_file",
+                                "--map",
+                                "--output",
+                                "-o",
+                                "--place_holder",
+                                "--redirect",
+                                "--search",
+                                "--stack_usage_control",
+                                "--whole_archive" };
 
 /// @brief Global configuration of the project (it should be visible
 /// from everywhere).
@@ -663,10 +703,6 @@ void cmGlobalIarGenerator::Generate()
   flagsWithType = std::string("CMAKE_EXE_LINKER_FLAGS_") + cmSystemTools::UpperCase(GLOBALCFG.buildType);
   GLOBALCFG.iarLinkerFlags = globalMakefile->GetSafeDefinition("CMAKE_EXE_LINKER_FLAGS");
   GLOBALCFG.iarLinkerFlags += std::string(" ") + globalMakefile->GetSafeDefinition(flagsWithType);
-  
-  GLOBALCFG.iarLinkerFlags += std::string(" ") + this->GeneratorTarget->GetProperty("LINK_FLAGS");
-  std::string configLinkFlags = "LINK_FLAGS_" + cmSystemTools::UpperCase(GLOBALCFG.buildType);
-  GLOBALCFG.iarLinkerFlags += std::string(" ") + this->GeneratorTarget->GetProperty(configLinkFlags);
 
   GLOBALCFG.compilerDlibConfig =
       globalMakefile->GetSafeDefinition("IAR_COMPILER_DLIB_CONFIG");
@@ -1103,7 +1139,10 @@ void cmGlobalIarGenerator::ParseCmdLineOpts(
         continue;
     }
 
-
+	if ((*it) == std::string(""))
+	{
+      continue;
+	}
 
     opts.push_back(*it);
   }
@@ -1294,11 +1333,37 @@ void cmGlobalIarGenerator::ConvertTargetToProject(const cmTarget& tgt,
   // Compiler options:
   std::vector<std::string> compilerOpts;
   genTgt->GetCompileOptions(compilerOpts, buildCfg.name, "C");
-  for(std::vector<std::string>::const_iterator it = compilerOpts.begin();
-      it != compilerOpts.end(); ++it)
-    {
+  for (std::vector<std::string>::const_iterator it = compilerOpts.begin();
+       it != compilerOpts.end(); ++it) {
     buildCfg.compilerOpts.push_back(*it);
-    }
+  }
+
+  // Linker options:
+
+   std::string linkLibs;
+   std::string frameworkPath;
+   std::string linkPath;
+   std::string flags;
+   std::string linkFlags;
+   cmLocalGenerator* lg = genTgt->GetLocalGenerator();
+   cmLinkLineComputer linkLineComputer(lg,
+                                       lg->GetStateSnapshot().GetDirectory());
+   lg->GetTargetFlags(&linkLineComputer, GLOBALCFG.buildType, linkLibs, flags,
+                      linkFlags, frameworkPath, linkPath,
+                      (cmGeneratorTarget*)genTgt);
+   cmSystemTools::Message(linkFlags);
+
+   cmGlobalIarGenerator::ParseCmdLineOpts(
+     linkFlags, cmGlobalIarGenerator::MULTIOPTS_LINKER,
+     sizeof(cmGlobalIarGenerator::MULTIOPTS_LINKER) / sizeof(const char*),
+     buildCfg.linkerOpts);
+
+  /*std::vector<std::string> linkerOpts;
+  genTgt->GetLinkOptions(linkerOpts, buildCfg.name, "C");
+  for (std::vector<std::string>::const_iterator it = linkerOpts.begin();
+       it != linkerOpts.end(); ++it) {
+    buildCfg.linkerOpts.push_back(*it);
+  }*/
 
   std::string importedLocationStr = std::string("IMPORTED_LOCATION_")
                   + cmSystemTools::UpperCase(GLOBALCFG.buildType);
@@ -1485,27 +1550,11 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   iccArmData->NewOption("IProcessor")->NewState("1");
   iccArmData->NewOption("IExtraOptionsCheck")->NewState("1");
 
-  
-  const char* multiOptsCompiler[] = { "--dependencies",
-                              "--diagnostics_tables",
-                              "--dlib_config",
-                              "-f",
-                              "-l",
-                              "--output",
-                              "-o",
-                              "--predef_macros",
-                              "--preinclude",
-                              "--preprocess",
-                              "--public_equ",
-                              "--section",
-                              "--system_include_dir" };
-  //GLOBALCFG.iarCCompilerFlags
-  //GLOBALCFG.iarCxxCompilerFlags
-  //GLOBALCFG.iarLinkerFlags
   cmGlobalIarGenerator::ParseCmdLineOpts(
-    GLOBALCFG.iarCCompilerFlags, multiOptsCompiler,
-    sizeof(multiOptsCompiler) / sizeof(const char*),
+    GLOBALCFG.iarCCompilerFlags, MULTIOPTS_COMPILER,
+    sizeof(MULTIOPTS_COMPILER) / sizeof(const char*),
     this->buildCfg.compilerOpts);
+
   iccArmData->NewOption("IExtraOptions")->NewStates(this->buildCfg.compilerOpts);
   iccArmData->NewOption("CCLangConformance")->NewState("0");
   iccArmData->NewOption("CCSignedPlainChar")->NewState("1");
@@ -1669,37 +1718,6 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   ilinkData->NewOption("IlinkTreatAsErr")->NewState("");
   ilinkData->NewOption("IlinkWarningsAreErrors")->NewState("0");
   ilinkData->NewOption("IlinkUseExtraOptions")->NewState("1");
-
-  const char* multiOptsLink[] = { "--call_graph",
-                                  "--config",
-                                  "--config_def",
-                                  "--config_search",
-                                  "--cpp_init_routine",
-                                  "--define_symbol",
-                                  "--dependencies",
-                                  "--diagnostics_tables",
-                                  "--entry",
-                                  "--export_builtin_config",
-                                  "--extra_init",
-                                  "-f",
-                                  "--image_input",
-                                  "--keep",
-                                  "--log",
-                                  "--log_file",
-                                  "--map",
-                                  "--output",
-                                  "-o",
-                                  "--place_holder",
-                                  "--redirect",
-                                  "--search",
-                                  "--stack_usage_control",
-                                  "--whole_archive" };
-
-  cmGlobalIarGenerator::ParseCmdLineOpts(
-    GLOBALCFG.iarLinkerFlags, multiOptsLink,
-    sizeof(multiOptsLink) / sizeof(const char*),
-    this->buildCfg.linkerOpts);
-
   ilinkData->NewOption("IlinkExtraOptions")->NewStates(this->buildCfg.linkerOpts);
   ilinkData->NewOption("IlinkLowLevelInterfaceSlave")->NewState("1");
   ilinkData->NewOption("IlinkAutoLibEnable")->NewState("1");

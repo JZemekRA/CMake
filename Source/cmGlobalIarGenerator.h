@@ -366,6 +366,8 @@ private:
   static const char* PROJ_FILE_EXT;
   static const char* WS_FILE_EXT;
   static const char* DEFAULT_MAKE_PROGRAM;
+  static const char* MULTIOPTS_COMPILER[13];
+  static const char* MULTIOPTS_LINKER[24];
 
   Workspace workspace;
   static GlobalCmakeCfg GLOBALCFG;

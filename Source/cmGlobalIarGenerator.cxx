@@ -645,9 +645,16 @@ void cmGlobalIarGenerator::Generate()
 
   GLOBALCFG.buildType = globalMakefile->GetSafeDefinition("CMAKE_BUILD_TYPE");
   std::string flagsWithType = std::string("CMAKE_C_FLAGS_") + cmSystemTools::UpperCase(GLOBALCFG.buildType);
-
+  
   GLOBALCFG.iarCCompilerFlags = globalMakefile->GetSafeDefinition("CMAKE_C_FLAGS");
   GLOBALCFG.iarCCompilerFlags += std::string(" ") + globalMakefile->GetSafeDefinition(flagsWithType);
+
+  flagsWithType = std::string("CMAKE_ASM_IAR_FLAGS_" +
+                              cmSystemTools::UpperCase(GLOBALCFG.buildType));
+  GLOBALCFG.iarAsmFlags =
+    globalMakefile->GetSafeDefinition("CMAKE_ASM_IAR_FLAGS");
+  GLOBALCFG.iarAsmFlags +=
+    std::string(" ") + globalMakefile->GetSafeDefinition(flagsWithType);
 
   flagsWithType = std::string("CMAKE_CXX_FLAGS_"+cmSystemTools::UpperCase(GLOBALCFG.buildType));
   GLOBALCFG.iarCxxCompilerFlags = globalMakefile->GetSafeDefinition("CMAKE_CXX_FLAGS");
@@ -1042,9 +1049,11 @@ namespace IarArg
 };
 
 //----------------------------------------------------------------------------
-void cmGlobalIarGenerator::ParseCmdLineCompilerOptions(std::string cmdLine,
-    cmGlobalIarGenerator::CompilerOpts& compilerOpts)
+void cmGlobalIarGenerator::ParseCmdLineOpts(
+  std::string cmdLine, const char* multiOpts[], size_t multiOptsLen,
+  std::vector<std::string>& opts)
 {
+#if 0
   const char* pChar = cmdLine.c_str();
   while(pChar != NULL || *pChar != '\0')
     {
@@ -1057,17 +1066,44 @@ void cmGlobalIarGenerator::ParseCmdLineCompilerOptions(std::string cmdLine,
       // Find the key in a map.
       }
     }
+#endif
 
+  bool isMulti = false;
+  std::string multicmd = "";
+  std::vector<std::string> cmds = cmSystemTools::SplitString(cmdLine, ' ');
+  for (std::vector<std::string>::const_iterator it = cmds.begin();
+       it != cmds.end(); ++it) {
+
+    if (isMulti) {
+      multicmd += " " + *it;
+      opts.push_back(multicmd);
+      isMulti = false;
+      continue;
+    }
+
+    for (int i = 0; i < multiOptsLen; i++) {
+      if ((*it).find(multiOpts[i]) == 0) {
+        // Multi option.
+        isMulti = true;
+        multicmd = *it;
+        break;
+      }
+    }
+
+    if (isMulti) {
+      continue;
+    }
+
+	if ((*it).find("-O") == 0) {
+		// Skip big O it is unusable in IDE!
+        continue;
+    }
+
+
+
+    opts.push_back(*it);
+  }
 }
-
-
-//----------------------------------------------------------------------------
-void cmGlobalIarGenerator::ParseCmdLineLinkerOptions(std::string cmdLine,
-    cmGlobalIarGenerator::LinkerOpts& compilerOpts)
-{
-
-}
-
 
 void cmGlobalIarGenerator::GetCmdLines(std::vector<cmCustomCommand> const& rTmpCmdVec,
                                       std::string& rBuildCmd,
@@ -1433,7 +1469,7 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   iccArmData->NewOption("CCListAssSource")->NewState("0");
   iccArmData->NewOption("CCEnableRemarks")->NewState("0");
   iccArmData->NewOption("CCDiagSuppress")
-                ->NewState(this->buildCfg.isDebug ? "Pa050, Pe161" : "Pa050" );
+                ->NewState("");
   iccArmData->NewOption("CCDiagRemark")->NewState("");
   iccArmData->NewOption("CCDiagWarning")->NewState("");
   iccArmData->NewOption("CCDiagError")->NewState("");
@@ -1444,6 +1480,28 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   iccArmData->NewOption("IEndianMode")->NewState("1");
   iccArmData->NewOption("IProcessor")->NewState("1");
   iccArmData->NewOption("IExtraOptionsCheck")->NewState("1");
+
+  
+  const char* multiOptsCompiler[] = { "--dependencies",
+                              "--diagnostics_tables",
+                              "--dlib_config",
+                              "-f",
+                              "-l",
+                              "--output",
+                              "-o",
+                              "--predef_macros",
+                              "--preinclude",
+                              "--preprocess",
+                              "--public_equ",
+                              "--section",
+                              "--system_include_dir" };
+  //GLOBALCFG.iarCCompilerFlags
+  //GLOBALCFG.iarCxxCompilerFlags
+  //GLOBALCFG.iarLinkerFlags
+  cmGlobalIarGenerator::ParseCmdLineOpts(
+    GLOBALCFG.iarCCompilerFlags, multiOptsCompiler,
+    sizeof(multiOptsCompiler) / sizeof(const char*),
+    this->buildCfg.compilerOpts);
   iccArmData->NewOption("IExtraOptions")->NewStates(this->buildCfg.compilerOpts);
   iccArmData->NewOption("CCLangConformance")->NewState("0");
   iccArmData->NewOption("CCSignedPlainChar")->NewState("1");
@@ -1607,6 +1665,37 @@ void cmGlobalIarGenerator::Project::CreateProjectFile()
   ilinkData->NewOption("IlinkTreatAsErr")->NewState("");
   ilinkData->NewOption("IlinkWarningsAreErrors")->NewState("0");
   ilinkData->NewOption("IlinkUseExtraOptions")->NewState("1");
+
+  const char* multiOptsLink[] = { "--call_graph",
+                                  "--config",
+                                  "--config_def",
+                                  "--config_search",
+                                  "--cpp_init_routine",
+                                  "--define_symbol",
+                                  "--dependencies",
+                                  "--diagnostics_tables",
+                                  "--entry",
+                                  "--export_builtin_config",
+                                  "--extra_init",
+                                  "-f",
+                                  "--image_input",
+                                  "--keep",
+                                  "--log",
+                                  "--log_file",
+                                  "--map",
+                                  "--output",
+                                  "-o",
+                                  "--place_holder",
+                                  "--redirect",
+                                  "--search",
+                                  "--stack_usage_control",
+                                  "--whole_archive" };
+
+  cmGlobalIarGenerator::ParseCmdLineOpts(
+    GLOBALCFG.iarLinkerFlags, multiOptsLink,
+    sizeof(multiOptsLink) / sizeof(const char*),
+    this->buildCfg.linkerOpts);
+
   ilinkData->NewOption("IlinkExtraOptions")->NewStates(this->buildCfg.linkerOpts);
   ilinkData->NewOption("IlinkLowLevelInterfaceSlave")->NewState("1");
   ilinkData->NewOption("IlinkAutoLibEnable")->NewState("1");

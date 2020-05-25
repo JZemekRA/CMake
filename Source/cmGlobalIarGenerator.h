@@ -221,9 +221,6 @@ private:
     std::string entryRoutine;
   };
 
-  void ParseCmdLineCompilerOptions(std::string cmdLine, CompilerOpts& compilerOpts);
-  void ParseCmdLineLinkerOptions(std::string cmdLine, LinkerOpts& compilerOpts);
-
   struct BuildConfig
   {
     /// build configuration name, this could be anything.
@@ -271,6 +268,9 @@ private:
     /// Linker options <state></state>
     std::vector<std::string> linkerOpts;
 
+    /// ASM options <state></state>
+    std::vector<std::string> asmOpts;
+
     /// Libraries <state></state>
     std::vector<std::string> libraries;
   };
@@ -302,6 +302,11 @@ private:
     void CreateDebuggerFile();
   };
 
+  static void cmGlobalIarGenerator::ParseCmdLineOpts(std::string cmdLine,
+                                              const char* multiOpts[],
+                                              size_t multiOptsLen,
+                                              std::vector<std::string>& opts);
+
   struct Workspace
   {
     /// Workspace name.
@@ -325,8 +330,9 @@ private:
 
   struct GlobalCmakeCfg
   {
-    std::string buildType           ;
-    std::string iarCCompilerFlags   ;
+    std::string buildType;
+    std::string iarCCompilerFlags;
+    std::string iarAsmFlags;
     std::string iarCxxCompilerFlags ;
     std::string iarLinkerFlags      ;
     std::string iarArmPath          ;
